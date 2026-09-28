@@ -294,14 +294,28 @@ const StorefrontContent: React.FC = () => {
         </a>
       </div>
 
-      {/* Modals & Slide-overs */}
-      <CartDrawer />
-      <CheckoutModal />
-      <OrderSuccessModal />
-      <CustomRequestModal />
-      <ProductModal />
-      <AdminModal />
-      <UserAuthModal />
+      {/* Modals & Slide-overs wrapped in Error Boundaries */}
+      <ErrorBoundary>
+        <CartDrawer />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <CheckoutModal />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <OrderSuccessModal />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <CustomRequestModal />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <ProductModal />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <AdminModal />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <UserAuthModal />
+      </ErrorBoundary>
 
       {/* Footer */}
       <Footer />
@@ -309,11 +323,38 @@ const StorefrontContent: React.FC = () => {
   );
 };
 
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+    return this.props.children;
+  }
+}
+
 export const App: React.FC = () => {
   return (
-    <StoreProvider>
-      <StorefrontContent />
-    </StoreProvider>
+    <ErrorBoundary>
+      <StoreProvider>
+        <StorefrontContent />
+      </StoreProvider>
+    </ErrorBoundary>
   );
 };
 

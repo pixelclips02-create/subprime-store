@@ -87,6 +87,27 @@ export const AdminModal: React.FC = () => {
   const [devPin, setDevPin] = useState(settings.developerPin || '1234');
   const [settingsSaved, setSettingsSaved] = useState(false);
 
+  const startEditingProduct = (prod: Product) => {
+    setEditingProduct(prod);
+    setEditTitle(prod.title || '');
+    setEditSubtitle(prod.subtitle || '');
+    setEditCategory(prod.category || 'ai_dev');
+    setEditFeatures(Array.isArray(prod.features) ? prod.features.join('\n') : '');
+    setEditDescription(prod.description || '');
+    setEditActivationType(prod.activationType || 'email');
+    setEditInStock(prod.inStock !== false);
+    setEditPlans(Array.isArray(prod.plans) ? prod.plans.map(p => ({ ...p })) : []);
+    setEditSuccess('');
+    setActiveTab('edit');
+  };
+
+  useEffect(() => {
+    if (editingProductTarget) {
+      startEditingProduct(editingProductTarget);
+      setEditingProductTarget(null);
+    }
+  }, [editingProductTarget]);
+
   if (!isAdminOpen) return null;
 
   const handlePinSubmit = (e: React.FormEvent) => {
@@ -201,26 +222,7 @@ export const AdminModal: React.FC = () => {
     }, 1500);
   };
 
-  const startEditingProduct = (prod: Product) => {
-    setEditingProduct(prod);
-    setEditTitle(prod.title);
-    setEditSubtitle(prod.subtitle || '');
-    setEditCategory(prod.category);
-    setEditFeatures(prod.features.join('\n'));
-    setEditDescription(prod.description);
-    setEditActivationType(prod.activationType);
-    setEditInStock(prod.inStock);
-    setEditPlans(prod.plans.map(p => ({ ...p })));
-    setEditSuccess('');
-    setActiveTab('edit');
-  };
 
-  useEffect(() => {
-    if (editingProductTarget) {
-      startEditingProduct(editingProductTarget);
-      setEditingProductTarget(null);
-    }
-  }, [editingProductTarget]);
 
   const handleUpdatePlan = (index: number, field: keyof PlanOption, value: any) => {
     setEditPlans((prev) => {
