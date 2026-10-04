@@ -10,11 +10,17 @@ import {
   Sparkles,
   Loader2,
   ArrowRight,
-  ExternalLink
+  ExternalLink,
+  Eye,
+  EyeOff,
+  KeyRound,
+  FileText,
+  Phone
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { CustomerOrderDetails } from '../types';
 import { buildRedditDmUrl } from '../services/emailService';
+import { DEFAULT_CHECKOUT_SETTINGS } from '../data/defaultProducts';
 
 export const CheckoutModal: React.FC = () => {
   const { 
@@ -29,14 +35,20 @@ export const CheckoutModal: React.FC = () => {
     setAuthRedirectReason 
   } = useStore();
 
+  const cfg = settings.checkoutSettings || DEFAULT_CHECKOUT_SETTINGS;
+
   const [formData, setFormData] = useState<CustomerOrderDetails>(() => ({
     fullName: currentUser?.name || '',
     email: currentUser?.email || '',
     redditUsername: '',
     telegramOrWhatsapp: '',
     activationEmailOrAccount: currentUser?.email || '',
+    accountPassword: '',
     notes: '',
+    customFieldValue: '',
   }));
+
+  const [showPassword, setShowPassword] = useState(false);
 
   React.useEffect(() => {
     if (currentUser && isCheckoutOpen) {
@@ -105,8 +117,36 @@ export const CheckoutModal: React.FC = () => {
       return;
     }
 
-    if (!formData.fullName.trim() || !formData.email.trim()) {
-      setErrorMsg('Please enter your name and valid delivery email.');
+    if (cfg.fullName?.enabled && cfg.fullName?.required && !formData.fullName.trim()) {
+      setErrorMsg(`Please enter your ${cfg.fullName.label || 'Full Name'}.`);
+      return;
+    }
+    if (cfg.deliveryEmail?.enabled && cfg.deliveryEmail?.required && !formData.email.trim()) {
+      setErrorMsg(`Please enter a valid ${cfg.deliveryEmail.label || 'Delivery Email'}.`);
+      return;
+    }
+    if (cfg.activationEmail?.enabled && cfg.activationEmail?.required && !formData.activationEmailOrAccount?.trim()) {
+      setErrorMsg(`Please enter your ${cfg.activationEmail.label || 'Account Email / ID for Activation'}.`);
+      return;
+    }
+    if (cfg.accountPassword?.enabled && cfg.accountPassword?.required && !formData.accountPassword?.trim()) {
+      setErrorMsg(`Please enter your ${cfg.accountPassword.label || 'Existing Account Password / PIN'} so we can access and activate your subscription.`);
+      return;
+    }
+    if (cfg.redditUsername?.enabled && cfg.redditUsername?.required && !formData.redditUsername?.trim()) {
+      setErrorMsg(`Please enter your ${cfg.redditUsername.label || 'Reddit Username'}.`);
+      return;
+    }
+    if (cfg.telegramOrWhatsapp?.enabled && cfg.telegramOrWhatsapp?.required && !formData.telegramOrWhatsapp?.trim()) {
+      setErrorMsg(`Please enter your ${cfg.telegramOrWhatsapp.label || 'Telegram or WhatsApp handle'}.`);
+      return;
+    }
+    if (cfg.paymentNotes?.enabled && cfg.paymentNotes?.required && !formData.notes?.trim()) {
+      setErrorMsg(`Please specify your ${cfg.paymentNotes.label || 'Payment Method / Notes'}.`);
+      return;
+    }
+    if (cfg.customField?.enabled && cfg.customField?.required && !formData.customFieldValue?.trim()) {
+      setErrorMsg(`Please fill in ${cfg.customField.label || 'the required order detail'}.`);
       return;
     }
 
@@ -158,7 +198,7 @@ export const CheckoutModal: React.FC = () => {
           <div>
             <strong className="font-bold text-white">Direct Reddit Payment Flow:</strong>
             <p className="text-orange-200/90 text-[11px] mt-0.5 leading-relaxed font-sans">
-              Enter your email below. When you confirm, we will notify the seller at <strong>{settings.sellerEmail}</strong> and immediately open a <strong>Reddit DM with your items pre-filled</strong> so you can pay (Crypto, PayPal, etc.) and get activated right on Reddit!
+              {cfg.checkoutNoticeText || 'Enter your details below. When you confirm, we will notify the seller and immediately open a Reddit DM with your items pre-filled so you can pay (Crypto, PayPal, etc.) and get activated right on Reddit!'}
             </p>
           </div>
         </div>
@@ -179,98 +219,214 @@ export const CheckoutModal: React.FC = () => {
               </h3>
             </div>
 
+            {/* Full Name & Delivery Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {cfg.fullName?.enabled && (
+                <div>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">
+                    {cfg.fullName.label || 'Full Name'} {cfg.fullName.required && <span className="text-rose-400 font-bold">*</span>}
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      required={cfg.fullName.required}
+                      placeholder={cfg.fullName.placeholder || 'John Doe'}
+                      value={formData.fullName}
+                      onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                      className="w-full pl-9 pr-3 py-2 text-xs bg-white/[0.03] border border-white/[0.08] focus:border-cyan-500/60 rounded-xl focus:ring-1 focus:ring-cyan-500/20 text-white placeholder-slate-600 outline-none"
+                    />
+                  </div>
+                  {cfg.fullName.helperText && (
+                    <p className="text-[10px] text-slate-500 mt-1 font-mono">{cfg.fullName.helperText}</p>
+                  )}
+                </div>
+              )}
+
+              {cfg.deliveryEmail?.enabled && (
+                <div>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">
+                    {cfg.deliveryEmail.label || 'Delivery Email Address'} {cfg.deliveryEmail.required && <span className="text-rose-400 font-bold">*</span>}
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                    <input
+                      type="email"
+                      required={cfg.deliveryEmail.required}
+                      placeholder={cfg.deliveryEmail.placeholder || 'john@example.com'}
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full pl-9 pr-3 py-2 text-xs bg-white/[0.03] border border-white/[0.08] focus:border-cyan-500/60 rounded-xl focus:ring-1 focus:ring-cyan-500/20 text-white placeholder-slate-600 outline-none"
+                    />
+                  </div>
+                  {cfg.deliveryEmail.helperText && (
+                    <p className="text-[10px] text-slate-500 mt-1 font-mono">{cfg.deliveryEmail.helperText}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Account Email for Activation */}
+            {cfg.activationEmail?.enabled && (
               <div>
                 <label className="text-xs font-mono text-slate-300 block mb-1">
-                  Full Name *
+                  {cfg.activationEmail.label || 'Account Email / ID for Activation'} {cfg.activationEmail.required && <span className="text-rose-400 font-bold">*</span>}
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                  <ShieldCheck className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
                   <input
                     type="text"
-                    required
-                    placeholder="John Doe"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                    required={cfg.activationEmail.required}
+                    placeholder={cfg.activationEmail.placeholder || 'e.g. Canva, Coursera or YouTube account email'}
+                    value={formData.activationEmailOrAccount}
+                    onChange={(e) => setFormData({ ...formData, activationEmailOrAccount: e.target.value })}
                     className="w-full pl-9 pr-3 py-2 text-xs bg-white/[0.03] border border-white/[0.08] focus:border-cyan-500/60 rounded-xl focus:ring-1 focus:ring-cyan-500/20 text-white placeholder-slate-600 outline-none"
                   />
                 </div>
+                {cfg.activationEmail.helperText && (
+                  <p className="text-[10px] text-slate-500 mt-1 font-mono">{cfg.activationEmail.helperText}</p>
+                )}
               </div>
+            )}
 
-              <div>
-                <label className="text-xs font-mono text-slate-300 block mb-1">
-                  Delivery Email Address *
-                </label>
+            {/* Account Password / Access PIN (Special Field for direct account access) */}
+            {cfg.accountPassword?.enabled && (
+              <div className="p-3.5 rounded-xl bg-amber-500/[0.05] border border-amber-500/20 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-mono text-amber-300 font-semibold flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{cfg.accountPassword.label || 'Existing Account Password / Access PIN'}</span>
+                    {cfg.accountPassword.required && <span className="text-rose-400 font-bold">*</span>}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="text-[11px] font-mono text-slate-400 hover:text-white flex items-center gap-1 transition cursor-pointer"
+                  >
+                    {showPassword ? (
+                      <>
+                        <EyeOff className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Hide</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Show</span>
+                      </>
+                    )}
+                  </button>
+                </div>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                  <KeyRound className="w-4 h-4 text-amber-400 absolute left-3 top-3" />
                   <input
-                    type="email"
-                    required
-                    placeholder="john@example.com"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full pl-9 pr-3 py-2 text-xs bg-white/[0.03] border border-white/[0.08] focus:border-cyan-500/60 rounded-xl focus:ring-1 focus:ring-cyan-500/20 text-white placeholder-slate-600 outline-none"
+                    type={showPassword ? 'text' : 'password'}
+                    required={cfg.accountPassword.required}
+                    placeholder={cfg.accountPassword.placeholder || 'Account password (if activation requires logging in)'}
+                    value={formData.accountPassword || ''}
+                    onChange={(e) => setFormData({ ...formData, accountPassword: e.target.value })}
+                    className="w-full pl-9 pr-3 py-2 text-xs bg-black/40 border border-amber-500/30 focus:border-amber-400 rounded-xl focus:ring-1 focus:ring-amber-400/20 text-white placeholder-slate-500 outline-none font-mono"
                   />
                 </div>
+                <p className="text-[10px] text-amber-200/80 font-mono leading-relaxed">
+                  {cfg.accountPassword.helperText || '🔒 Provided exclusively to the seller to log in and activate or upgrade your subscription.'}
+                </p>
               </div>
-            </div>
+            )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Reddit Username & Telegram / WhatsApp */}
+            {(cfg.redditUsername?.enabled || cfg.telegramOrWhatsapp?.enabled) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {cfg.redditUsername?.enabled && (
+                  <div>
+                    <label className="text-xs font-mono text-slate-300 block mb-1">
+                      {cfg.redditUsername.label || 'Your Reddit Username'} {cfg.redditUsername.required && <span className="text-rose-400 font-bold">*</span>}
+                    </label>
+                    <div className="relative">
+                      <MessageSquare className="w-4 h-4 text-orange-400 absolute left-3 top-3" />
+                      <input
+                        type="text"
+                        required={cfg.redditUsername.required}
+                        placeholder={cfg.redditUsername.placeholder || 'u/YourUsername'}
+                        value={formData.redditUsername}
+                        onChange={(e) => setFormData({ ...formData, redditUsername: e.target.value })}
+                        className="w-full pl-9 pr-3 py-2 text-xs bg-white/[0.03] border border-white/[0.08] focus:border-cyan-500/60 rounded-xl focus:ring-1 focus:ring-cyan-500/20 text-white placeholder-slate-600 outline-none"
+                      />
+                    </div>
+                    {cfg.redditUsername.helperText && (
+                      <p className="text-[10px] text-slate-500 mt-1 font-mono">{cfg.redditUsername.helperText}</p>
+                    )}
+                  </div>
+                )}
+
+                {cfg.telegramOrWhatsapp?.enabled && (
+                  <div>
+                    <label className="text-xs font-mono text-slate-300 block mb-1">
+                      {cfg.telegramOrWhatsapp.label || 'Telegram or WhatsApp'} {cfg.telegramOrWhatsapp.required && <span className="text-rose-400 font-bold">*</span>}
+                    </label>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 text-emerald-400 absolute left-3 top-3" />
+                      <input
+                        type="text"
+                        required={cfg.telegramOrWhatsapp.required}
+                        placeholder={cfg.telegramOrWhatsapp.placeholder || '@handle or phone number'}
+                        value={formData.telegramOrWhatsapp}
+                        onChange={(e) => setFormData({ ...formData, telegramOrWhatsapp: e.target.value })}
+                        className="w-full pl-9 pr-3 py-2 text-xs bg-white/[0.03] border border-white/[0.08] focus:border-cyan-500/60 rounded-xl focus:ring-1 focus:ring-cyan-500/20 text-white placeholder-slate-600 outline-none"
+                      />
+                    </div>
+                    {cfg.telegramOrWhatsapp.helperText && (
+                      <p className="text-[10px] text-slate-500 mt-1 font-mono">{cfg.telegramOrWhatsapp.helperText}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Custom Requirement Field */}
+            {cfg.customField?.enabled && (
               <div>
                 <label className="text-xs font-mono text-slate-300 block mb-1">
-                  Your Reddit Username (Recommended)
+                  {cfg.customField.label || 'Additional Order Requirement'} {cfg.customField.required && <span className="text-rose-400 font-bold">*</span>}
                 </label>
                 <div className="relative">
-                  <MessageSquare className="w-4 h-4 text-orange-400 absolute left-3 top-3" />
+                  <Sparkles className="w-4 h-4 text-cyan-400 absolute left-3 top-3" />
                   <input
                     type="text"
-                    placeholder="u/YourUsername"
-                    value={formData.redditUsername}
-                    onChange={(e) => setFormData({ ...formData, redditUsername: e.target.value })}
+                    required={cfg.customField.required}
+                    placeholder={cfg.customField.placeholder || 'Enter requested detail...'}
+                    value={formData.customFieldValue || ''}
+                    onChange={(e) => setFormData({ ...formData, customFieldValue: e.target.value })}
                     className="w-full pl-9 pr-3 py-2 text-xs bg-white/[0.03] border border-white/[0.08] focus:border-cyan-500/60 rounded-xl focus:ring-1 focus:ring-cyan-500/20 text-white placeholder-slate-600 outline-none"
                   />
                 </div>
+                {cfg.customField.helperText && (
+                  <p className="text-[10px] text-slate-500 mt-1 font-mono">{cfg.customField.helperText}</p>
+                )}
               </div>
+            )}
 
+            {/* Payment Method / Notes */}
+            {cfg.paymentNotes?.enabled && (
               <div>
                 <label className="text-xs font-mono text-slate-300 block mb-1">
-                  Telegram or WhatsApp (Optional)
+                  {cfg.paymentNotes.label || 'Preferred Payment Method / Notes'} {cfg.paymentNotes.required && <span className="text-rose-400 font-bold">*</span>}
                 </label>
-                <input
-                  type="text"
-                  placeholder="@handle or phone number"
-                  value={formData.telegramOrWhatsapp}
-                  onChange={(e) => setFormData({ ...formData, telegramOrWhatsapp: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white/[0.03] border border-white/[0.08] focus:border-cyan-500/60 rounded-xl focus:ring-1 focus:ring-cyan-500/20 text-white placeholder-slate-600 outline-none"
-                />
+                <div className="relative">
+                  <FileText className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    required={cfg.paymentNotes.required}
+                    placeholder={cfg.paymentNotes.placeholder || 'e.g. Prefer Crypto (USDT/SOL/BTC), PayPal, or UPI'}
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full pl-9 pr-3 py-2 text-xs bg-white/[0.03] border border-white/[0.08] focus:border-cyan-500/60 rounded-xl focus:ring-1 focus:ring-cyan-500/20 text-white placeholder-slate-600 outline-none"
+                  />
+                </div>
+                {cfg.paymentNotes.helperText && (
+                  <p className="text-[10px] text-slate-500 mt-1 font-mono">{cfg.paymentNotes.helperText}</p>
+                )}
               </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-mono text-slate-300 block mb-1">
-                Account Email for Activation (If different from delivery email)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Canva, Coursera or YouTube account email"
-                value={formData.activationEmailOrAccount}
-                onChange={(e) => setFormData({ ...formData, activationEmailOrAccount: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-white/[0.03] border border-white/[0.08] focus:border-cyan-500/60 rounded-xl focus:ring-1 focus:ring-cyan-500/20 text-white placeholder-slate-600 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-mono text-slate-300 block mb-1">
-                Preferred Payment Method / Notes
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Prefer Crypto (USDT/SOL/BTC), PayPal, or UPI"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-white/[0.03] border border-white/[0.08] focus:border-cyan-500/60 rounded-xl focus:ring-1 focus:ring-cyan-500/20 text-white placeholder-slate-600 outline-none"
-              />
-            </div>
+            )}
           </div>
 
           {/* Order Summary */}

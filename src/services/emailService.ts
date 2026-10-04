@@ -25,8 +25,10 @@ CUSTOMER DETAILS:
 - Name: ${order.customer.fullName}
 - Email: ${order.customer.email}
 - Activation Email/Account: ${order.customer.activationEmailOrAccount || 'Same as customer email'}
+- Account Password / Access PIN: ${order.customer.accountPassword || 'Not required / Not provided'}
 - Reddit Username: ${order.customer.redditUsername || 'Not provided'}
 - Telegram/WhatsApp: ${order.customer.telegramOrWhatsapp || 'Not provided'}
+- Custom Order Requirement: ${order.customer.customFieldValue || 'None'}
 - Special Instructions / Notes: ${order.customer.notes || 'None'}
 
 ORDER ITEMS:
@@ -154,8 +156,7 @@ export function buildRedditDmUrl(
 📋 Order ID: #${order.orderId}
 👤 Name: ${order.customer.fullName}
 📧 Delivery Email: ${order.customer.email}
-${order.customer.activationEmailOrAccount ? `🔑 Account for Activation: ${order.customer.activationEmailOrAccount}\n` : ''}
-📦 Items:
+${order.customer.activationEmailOrAccount ? `🔑 Account for Activation: ${order.customer.activationEmailOrAccount}\n` : ''}${order.customer.accountPassword ? `🔒 Account Password / PIN: ${order.customer.accountPassword}\n` : ''}${order.customer.telegramOrWhatsapp ? `📱 Telegram/WhatsApp: ${order.customer.telegramOrWhatsapp}\n` : ''}${order.customer.customFieldValue ? `📌 Requirement Detail: ${order.customer.customFieldValue}\n` : ''}📦 Items:
 ${itemsText}
 
 💰 Total: ${settings.currencySymbol}${order.totalAmount}

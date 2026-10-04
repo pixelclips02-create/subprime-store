@@ -44,8 +44,7 @@ export const OrderSuccessModal: React.FC = () => {
   const orderTextSummary = `🚀 SubPrime Order #${lastPlacedOrder.orderId}
 👤 Name: ${lastPlacedOrder.customer.fullName}
 📧 Delivery Email: ${lastPlacedOrder.customer.email}
-${lastPlacedOrder.customer.activationEmailOrAccount ? `🔑 Activation Account: ${lastPlacedOrder.customer.activationEmailOrAccount}\n` : ''}
-📦 Subscriptions:
+${lastPlacedOrder.customer.activationEmailOrAccount ? `🔑 Activation Account: ${lastPlacedOrder.customer.activationEmailOrAccount}\n` : ''}${lastPlacedOrder.customer.accountPassword ? `🔒 Account Password/PIN: ${lastPlacedOrder.customer.accountPassword}\n` : ''}${lastPlacedOrder.customer.telegramOrWhatsapp ? `📱 Telegram/WhatsApp: ${lastPlacedOrder.customer.telegramOrWhatsapp}\n` : ''}${lastPlacedOrder.customer.customFieldValue ? `📌 Requirement Detail: ${lastPlacedOrder.customer.customFieldValue}\n` : ''}📦 Subscriptions:
 ${lastPlacedOrder.items.map(i => `• ${i.productTitle} (${i.planLabel}) x${i.quantity} - ${settings.currencySymbol}${i.price}`).join('\n')}
 
 💰 Total: ${settings.currencySymbol}${lastPlacedOrder.totalAmount.toFixed(2)}

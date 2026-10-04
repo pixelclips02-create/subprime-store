@@ -1,4 +1,4 @@
-import { CategoryInfo, Product, StoreSettings } from '../types';
+import { CategoryInfo, Product, StoreSettings, CheckoutSettings } from '../types';
 
 export const CATEGORIES: CategoryInfo[] = [
   { id: 'all', name: 'All Subscriptions', icon: 'Grid', description: 'Explore all premium subscriptions & deals' },
@@ -9,6 +9,66 @@ export const CATEGORIES: CategoryInfo[] = [
   { id: 'vpn', name: 'VPN Services', icon: 'Shield', description: 'High-speed secure VPNs for privacy and streaming' },
 ];
 
+export const DEFAULT_CHECKOUT_SETTINGS: CheckoutSettings = {
+  fullName: {
+    enabled: true,
+    required: true,
+    label: 'Full Name',
+    placeholder: 'John Doe',
+    helperText: 'For your invoice and customer order record'
+  },
+  deliveryEmail: {
+    enabled: true,
+    required: true,
+    label: 'Delivery Email Address',
+    placeholder: 'john@example.com',
+    helperText: 'Where digital invoice and delivery details are sent'
+  },
+  activationEmail: {
+    enabled: true,
+    required: false,
+    label: 'Account Email / ID for Activation',
+    placeholder: 'e.g. Canva, Coursera, or YouTube account email',
+    helperText: 'Provide if different from your delivery email'
+  },
+  accountPassword: {
+    enabled: true,
+    required: false,
+    label: 'Existing Account Password / Access PIN',
+    placeholder: 'Account password (if activation requires logging in)',
+    helperText: 'Required if you want us to log into your account to activate/upgrade'
+  },
+  redditUsername: {
+    enabled: true,
+    required: false,
+    label: 'Reddit Username',
+    placeholder: 'u/YourUsername',
+    helperText: 'For 1-click Reddit DM communication and payment'
+  },
+  telegramOrWhatsapp: {
+    enabled: true,
+    required: false,
+    label: 'Telegram or WhatsApp',
+    placeholder: '@handle or phone number with country code',
+    helperText: 'Alternative direct contact handle'
+  },
+  paymentNotes: {
+    enabled: true,
+    required: false,
+    label: 'Preferred Payment Method / Notes',
+    placeholder: 'e.g. Crypto (USDT/SOL/BTC), PayPal, CashApp, UPI',
+    helperText: 'Preferred payment currency and any instructions'
+  },
+  customField: {
+    enabled: false,
+    required: false,
+    label: 'Additional Order Requirement',
+    placeholder: 'Enter additional required detail...',
+    helperText: 'Extra detail requested by store owner'
+  },
+  checkoutNoticeText: 'Direct Reddit Payment Flow: Enter your details below. When you confirm, we will notify the seller and immediately open a Reddit DM with your items pre-filled so you can pay and get activated right on Reddit!'
+};
+
 export const DEFAULT_SETTINGS: StoreSettings = {
   storeName: 'SubPrime Digital',
   sellerEmail: 'orders@yourdomain.com', // Developer can update live
@@ -18,7 +78,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   contactEmail: 'support@yourdomain.com',
   customRequestsEnabled: true,
   announcementText: '🚀 Genuine Activations • Official Links • Activation On Your Email Available • Fast Delivery',
-  developerPin: '022005'
+  developerPin: '022005',
+  checkoutSettings: DEFAULT_CHECKOUT_SETTINGS
 };
 
 export const DEFAULT_PRODUCTS: Product[] = [

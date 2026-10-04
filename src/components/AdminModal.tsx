@@ -14,16 +14,25 @@ import {
   ShieldAlert, 
   Ban, 
   CheckCircle2, 
-  Search,
-  DollarSign,
-  Package,
-  Lock,
-  LogOut,
-  KeyRound
+  Search, 
+  DollarSign, 
+  Package, 
+  Lock, 
+  LogOut, 
+  KeyRound, 
+  CheckSquare, 
+  Copy, 
+  Eye, 
+  EyeOff, 
+  ExternalLink, 
+  Phone, 
+  FileText, 
+  Sparkles 
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { Product, CategoryId, PlanOption } from '../types';
-import { CATEGORIES } from '../data/defaultProducts';
+import { Product, CategoryId, PlanOption, CheckoutSettings, CheckoutFieldConfig } from '../types';
+import { CATEGORIES, DEFAULT_CHECKOUT_SETTINGS } from '../data/defaultProducts';
+import { buildRedditDmUrl } from '../services/emailService';
 
 export const AdminModal: React.FC = () => {
   const { 
@@ -46,7 +55,7 @@ export const AdminModal: React.FC = () => {
     setEditingProductTarget
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'inventory' | 'add' | 'edit' | 'settings' | 'orders'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'add' | 'edit' | 'checkout' | 'settings' | 'orders'>('inventory');
   const [filterQuery, setFilterQuery] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -86,6 +95,26 @@ export const AdminModal: React.FC = () => {
   const [storeName, setStoreName] = useState(settings.storeName);
   const [devPin, setDevPin] = useState(settings.developerPin || '1234');
   const [settingsSaved, setSettingsSaved] = useState(false);
+
+  // Checkout Fields Configuration State
+  const [checkoutForm, setCheckoutForm] = useState<CheckoutSettings>(() =>
+    settings.checkoutSettings ? JSON.parse(JSON.stringify(settings.checkoutSettings)) : DEFAULT_CHECKOUT_SETTINGS
+  );
+  const [checkoutSaved, setCheckoutSaved] = useState(false);
+  const [copiedCredential, setCopiedCredential] = useState<string | null>(null);
+  const [revealedPasswords, setRevealedPasswords] = useState<{ [orderId: string]: boolean }>({});
+
+  // Sync settings when external changes occur
+  useEffect(() => {
+    if (settings.checkoutSettings) {
+      setCheckoutForm(JSON.parse(JSON.stringify(settings.checkoutSettings)));
+    }
+    setSellerEmail(settings.sellerEmail);
+    setRedditUsername(settings.redditUsername);
+    setCurrencySymbol(settings.currencySymbol);
+    setStoreName(settings.storeName);
+    if (settings.developerPin) setDevPin(settings.developerPin);
+  }, [settings]);
 
   const startEditingProduct = (prod: Product) => {
     setEditingProduct(prod);
@@ -301,6 +330,47 @@ export const AdminModal: React.FC = () => {
     setTimeout(() => setSettingsSaved(false), 2000);
   };
 
+  const handleUpdateCheckoutField = (
+    fieldName: keyof Omit<CheckoutSettings, 'checkoutNoticeText'>,
+    subField: keyof CheckoutFieldConfig,
+    value: any
+  ) => {
+    setCheckoutForm((prev) => ({
+      ...prev,
+      [fieldName]: {
+        ...prev[fieldName],
+        [subField]: value
+      }
+    }));
+  };
+
+  const handleSaveCheckoutSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateSettings({
+      checkoutSettings: checkoutForm
+    });
+    setCheckoutSaved(true);
+    setTimeout(() => setCheckoutSaved(false), 2500);
+  };
+
+  const handleResetCheckoutDefaults = () => {
+    if (window.confirm('Reset all checkout fields and requirements to default configuration?')) {
+      const cloned = JSON.parse(JSON.stringify(DEFAULT_CHECKOUT_SETTINGS));
+      setCheckoutForm(cloned);
+      updateSettings({
+        checkoutSettings: cloned
+      });
+      setCheckoutSaved(true);
+      setTimeout(() => setCheckoutSaved(false), 2500);
+    }
+  };
+
+  const handleCopyCredential = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCredential(id);
+    setTimeout(() => setCopiedCredential(null), 2000);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm">
       <div className="bg-[#0c0f18] text-slate-100 rounded-3xl shadow-2xl max-w-4xl w-full h-[88vh] flex flex-col border border-white/[0.09] overflow-hidden">
@@ -390,10 +460,10 @@ export const AdminModal: React.FC = () => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-white/[0.08] bg-[#080a12] px-4 font-mono">
+        <div className="flex border-b border-white/[0.08] bg-[#080a12] px-4 font-mono overflow-x-auto scrollbar-none">
           <button
             onClick={() => setActiveTab('inventory')}
-            className={`py-3 px-4 font-bold text-xs border-b-2 transition flex items-center gap-1.5 ${
+            className={`py-3 px-4 font-bold text-xs border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'inventory'
                 ? 'border-cyan-500 text-cyan-300 bg-cyan-950/40'
                 : 'border-transparent text-slate-400 hover:text-white'
@@ -405,7 +475,7 @@ export const AdminModal: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('add')}
-            className={`py-3 px-4 font-bold text-xs border-b-2 transition flex items-center gap-1.5 ${
+            className={`py-3 px-4 font-bold text-xs border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'add'
                 ? 'border-cyan-500 text-cyan-300 bg-cyan-950/40'
                 : 'border-transparent text-slate-400 hover:text-white'
@@ -418,7 +488,7 @@ export const AdminModal: React.FC = () => {
           {editingProduct && (
             <button
               onClick={() => setActiveTab('edit')}
-              className={`py-3 px-4 font-bold text-xs border-b-2 transition flex items-center gap-1.5 ${
+              className={`py-3 px-4 font-bold text-xs border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'edit'
                   ? 'border-amber-400 text-amber-300 bg-amber-950/40 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
                   : 'border-transparent text-amber-400/80 hover:text-amber-300'
@@ -430,8 +500,20 @@ export const AdminModal: React.FC = () => {
           )}
 
           <button
+            onClick={() => setActiveTab('checkout')}
+            className={`py-3 px-4 font-bold text-xs border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'checkout'
+                ? 'border-cyan-500 text-cyan-300 bg-cyan-950/40'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <CheckSquare className="w-4 h-4 text-cyan-400" />
+            <span>Checkout Fields & Rules</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('settings')}
-            className={`py-3 px-4 font-bold text-xs border-b-2 transition flex items-center gap-1.5 ${
+            className={`py-3 px-4 font-bold text-xs border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'settings'
                 ? 'border-cyan-500 text-cyan-300 bg-cyan-950/40'
                 : 'border-transparent text-slate-400 hover:text-white'
@@ -443,14 +525,14 @@ export const AdminModal: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('orders')}
-            className={`py-3 px-4 font-bold text-xs border-b-2 transition flex items-center gap-1.5 ${
+            className={`py-3 px-4 font-bold text-xs border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'orders'
                 ? 'border-cyan-500 text-cyan-300 bg-cyan-950/40'
                 : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>Recent Orders ({orders.length})</span>
+            <span>Customer Orders ({orders.length})</span>
           </button>
         </div>
 
@@ -1026,21 +1108,21 @@ export const AdminModal: React.FC = () => {
             <form onSubmit={handleSaveSettings} className="max-w-xl mx-auto space-y-4">
               
               {settingsSaved && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-lg font-bold flex items-center gap-2">
-                  <Check className="w-4 h-4" />
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-xl font-bold flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-400" />
                   <span>Settings saved successfully!</span>
                 </div>
               )}
 
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900">
-                <span className="font-bold">Live Configuration:</span>
-                <p className="text-[11px] text-blue-800 mt-0.5">
+              <div className="p-3.5 bg-blue-500/10 border border-blue-500/25 rounded-2xl text-xs text-blue-200">
+                <span className="font-bold text-cyan-300 block mb-0.5">Live Store Configuration:</span>
+                <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
                   Update your notification email and Reddit handle here. Changes immediately apply to all checkout orders and pre-filled Reddit DM links!
                 </p>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">
+                <label className="text-xs font-bold text-slate-300 block mb-1">
                   Your Receiving Email (Where orders are delivered) *
                 </label>
                 <input
@@ -1049,47 +1131,47 @@ export const AdminModal: React.FC = () => {
                   placeholder="your-email@example.com"
                   value={sellerEmail}
                   onChange={(e) => setSellerEmail(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-full px-3 py-2 text-xs bg-black/40 border border-white/10 rounded-xl focus:border-cyan-500 text-white outline-none"
                 />
-                <span className="text-[10px] text-gray-500">Every placed order will dispatch order notifications to this email address.</span>
+                <span className="text-[10px] text-slate-400 font-mono">Every placed order dispatches order notifications to this email address.</span>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">
+                <label className="text-xs font-bold text-slate-300 block mb-1">
                   Your Reddit Username (For customer DMs & Custom Requests) *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="SubPrimeOfficial or your username"
+                  placeholder="Embarrassed_Page8733 or your username"
                   value={redditUsername}
                   onChange={(e) => setRedditUsername(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-full px-3 py-2 text-xs bg-black/40 border border-white/10 rounded-xl focus:border-cyan-500 text-white outline-none"
                 />
-                <span className="text-[10px] text-gray-500">Pre-populates the 1-click Reddit DM compose URL.</span>
+                <span className="text-[10px] text-slate-400 font-mono">Pre-populates the 1-click Reddit DM compose URL.</span>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">
+                  <label className="text-xs font-bold text-slate-300 block mb-1">
                     Store Brand Name
                   </label>
                   <input
                     type="text"
                     value={storeName}
                     onChange={(e) => setStoreName(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="w-full px-3 py-2 text-xs bg-black/40 border border-white/10 rounded-xl focus:border-cyan-500 text-white outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">
+                  <label className="text-xs font-bold text-slate-300 block mb-1">
                     Currency Symbol
                   </label>
                   <select
                     value={currencySymbol}
                     onChange={(e) => setCurrencySymbol(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                    className="w-full px-3 py-2 text-xs bg-black/40 border border-white/10 rounded-xl focus:border-cyan-500 text-white outline-none"
                   >
                     <option value="$">$ (USD)</option>
                     <option value="₹">₹ (INR)</option>
@@ -1100,27 +1182,27 @@ export const AdminModal: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">
+                <label className="text-xs font-bold text-slate-300 block mb-1">
                   Developer Mode Security PIN (Only you know this)
                 </label>
                 <div className="relative">
-                  <KeyRound className="w-4 h-4 text-indigo-500 absolute left-3 top-2.5" />
+                  <KeyRound className="w-4 h-4 text-cyan-400 absolute left-3 top-2.5" />
                   <input
                     type="text"
                     required
                     value={devPin}
                     onChange={(e) => setDevPin(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                    className="w-full pl-9 pr-3 py-2 text-xs bg-black/40 border border-white/10 rounded-xl focus:border-cyan-500 text-white outline-none font-mono"
                   />
                 </div>
-                <span className="text-[10px] text-gray-500">
-                  Used with <kbd className="bg-gray-100 px-1 py-0.2 rounded font-mono">Ctrl + Shift + D</kbd> to unlock your private management controls.
+                <span className="text-[10px] text-slate-400 font-mono">
+                  Used with <kbd className="bg-white/10 px-1 py-0.2 rounded font-mono text-slate-200">Ctrl + Shift + D</kbd> to unlock your private management controls.
                 </span>
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 px-4 rounded-lg shadow transition flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-black font-extrabold text-xs py-2.5 px-4 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.25)] transition flex items-center justify-center gap-2 cursor-pointer font-mono"
               >
                 <Check className="w-4 h-4" />
                 <span>Save Store Configuration</span>
@@ -1129,59 +1211,516 @@ export const AdminModal: React.FC = () => {
             </form>
           )}
 
-          {/* TAB 4: RECENT ORDERS */}
+          {/* TAB 4: CHECKOUT FIELDS & REQUIREMENTS CONFIGURATOR */}
+          {activeTab === 'checkout' && (
+            <form onSubmit={handleSaveCheckoutSettings} className="space-y-5 max-w-3xl mx-auto">
+              
+              {checkoutSaved && (
+                <div className="p-3.5 bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs rounded-2xl font-bold flex items-center gap-2 font-mono">
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span>Checkout fields configuration updated and live on storefront!</span>
+                </div>
+              )}
+
+              {/* Instructions Banner */}
+              <div className="p-4 bg-indigo-500/10 border border-indigo-500/25 rounded-2xl text-xs space-y-1.5">
+                <div className="flex items-center gap-2 text-indigo-300 font-bold font-mono">
+                  <SlidersHorizontal className="w-4 h-4" />
+                  <span>Customizable Checkout Form & Field Rules</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed font-sans text-[11px]">
+                  Control exactly what appears when customers click <strong>Proceed to Checkout</strong>.
+                  Toggle <strong>Show Field</strong> to enable/disable fields, and tick <strong>Required (*)</strong> to enforce mandatory completion before order submission.
+                </p>
+              </div>
+
+              {/* Account Password Feature Callout */}
+              <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs space-y-2">
+                <div className="flex items-center gap-2 text-amber-300 font-bold font-mono">
+                  <KeyRound className="w-4 h-4 text-amber-400" />
+                  <span>Account Password / Access PIN Feature</span>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  Selling subscriptions where you need to log into the customer&apos;s account to upgrade them (e.g. Netflix, YouTube Premium, Coursera, or Canva)?
+                  Ensure <strong>Account Password / Access PIN</strong> is toggled to <strong>Show Field</strong> and tick <strong>Required (*)</strong>.
+                  Customers will see a secure password input with show/hide toggle. All submitted passwords appear in your <strong>Customer Orders</strong> tab with 1-click copy.
+                </p>
+              </div>
+
+              {/* Field Config List */}
+              <div className="space-y-3.5">
+                {[
+                  {
+                    key: 'accountPassword' as const,
+                    title: 'Account Password / Access PIN',
+                    badge: 'Sensitive Credential',
+                    badgeColor: 'text-amber-400 bg-amber-500/15 border-amber-500/30',
+                    icon: KeyRound,
+                    description: 'Allows customer to provide their account password/PIN if activation requires logging into their account.',
+                    isSensitive: true,
+                  },
+                  {
+                    key: 'activationEmail' as const,
+                    title: 'Account Email / ID for Activation',
+                    badge: 'Activation Target',
+                    badgeColor: 'text-cyan-400 bg-cyan-500/15 border-cyan-500/30',
+                    icon: Mail,
+                    description: 'The email/ID where the subscription should be assigned (if different from delivery email).',
+                  },
+                  {
+                    key: 'fullName' as const,
+                    title: 'Customer Full Name',
+                    badge: 'Customer Identity',
+                    badgeColor: 'text-indigo-400 bg-indigo-500/15 border-indigo-500/30',
+                    icon: CheckCircle2,
+                    description: 'Full name for invoice, warranty record, and greeting.',
+                  },
+                  {
+                    key: 'deliveryEmail' as const,
+                    title: 'Delivery Email Address',
+                    badge: 'Receipt & Delivery',
+                    badgeColor: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30',
+                    icon: Mail,
+                    description: 'Primary email address where order receipt and delivery links will be sent.',
+                  },
+                  {
+                    key: 'redditUsername' as const,
+                    title: 'Reddit Username',
+                    badge: 'Reddit DM Flow',
+                    badgeColor: 'text-orange-400 bg-orange-500/15 border-orange-500/30',
+                    icon: MessageSquare,
+                    description: 'Reddit handle to pre-fill 1-click Reddit DM compose button and verify buyer identity.',
+                  },
+                  {
+                    key: 'telegramOrWhatsapp' as const,
+                    title: 'Telegram or WhatsApp',
+                    badge: 'Instant Messaging',
+                    badgeColor: 'text-sky-400 bg-sky-500/15 border-sky-500/30',
+                    icon: Phone,
+                    description: 'Alternative direct contact channel for fast fulfillment coordination.',
+                  },
+                  {
+                    key: 'paymentNotes' as const,
+                    title: 'Payment Method & Order Notes',
+                    badge: 'Payment Preference',
+                    badgeColor: 'text-purple-400 bg-purple-500/15 border-purple-500/30',
+                    icon: DollarSign,
+                    description: 'Customer preferred payment method (Crypto, PayPal, CashApp, UPI) and special notes.',
+                  },
+                  {
+                    key: 'customField' as const,
+                    title: 'Custom Order Requirement',
+                    badge: 'Customizable Field',
+                    badgeColor: 'text-pink-400 bg-pink-500/15 border-pink-500/30',
+                    icon: FileText,
+                    description: 'Any extra custom requirement (e.g., Discord Tag, Country/Region, Profile Name).',
+                  },
+                ].map((f) => (
+                  <div
+                    key={f.key}
+                    className={`p-4 rounded-2xl border transition ${
+                      checkoutForm[f.key].enabled
+                        ? f.isSensitive
+                          ? 'bg-amber-500/[0.04] border-amber-500/30'
+                          : 'bg-white/[0.03] border-white/[0.08]'
+                        : 'bg-white/[0.01] border-white/[0.04] opacity-60'
+                    }`}
+                  >
+                    {/* Header with Title, Badge, and Checkboxes */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-xl border mt-0.5 ${f.badgeColor}`}>
+                          <f.icon className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-display font-bold text-sm text-white">
+                              {f.title}
+                            </span>
+                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${f.badgeColor}`}>
+                              {f.badge}
+                            </span>
+                            {checkoutForm[f.key].required && checkoutForm[f.key].enabled && (
+                              <span className="text-[10px] font-mono font-bold text-rose-400 bg-rose-950/60 border border-rose-800/60 px-2 py-0.5 rounded-full">
+                                * Required
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1 font-sans">
+                            {f.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Controls: Enable & Required */}
+                      <div className="flex items-center gap-4 shrink-0 bg-white/[0.03] border border-white/[0.08] p-2 rounded-xl">
+                        <label className="flex items-center gap-2 text-xs font-mono cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={checkoutForm[f.key].enabled}
+                            onChange={(e) => handleUpdateCheckoutField(f.key, 'enabled', e.target.checked)}
+                            className="w-4 h-4 rounded text-cyan-500 bg-black/40 border-white/20 focus:ring-cyan-500 cursor-pointer"
+                          />
+                          <span className={checkoutForm[f.key].enabled ? 'text-cyan-300 font-bold' : 'text-slate-500'}>
+                            Show Field
+                          </span>
+                        </label>
+
+                        <div className="w-px h-5 bg-white/10" />
+
+                        <label className={`flex items-center gap-2 text-xs font-mono select-none ${
+                          checkoutForm[f.key].enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'
+                        }`}>
+                          <input
+                            type="checkbox"
+                            disabled={!checkoutForm[f.key].enabled}
+                            checked={checkoutForm[f.key].required}
+                            onChange={(e) => handleUpdateCheckoutField(f.key, 'required', e.target.checked)}
+                            className="w-4 h-4 rounded text-rose-500 bg-black/40 border-white/20 focus:ring-rose-500 cursor-pointer"
+                          />
+                          <span className={checkoutForm[f.key].required ? 'text-rose-300 font-bold' : 'text-slate-400'}>
+                            Required (*)
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Inputs when enabled */}
+                    {checkoutForm[f.key].enabled && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 text-xs">
+                        <div>
+                          <label className="text-[11px] font-mono text-slate-400 block mb-1">
+                            Field Label
+                          </label>
+                          <input
+                            type="text"
+                            value={checkoutForm[f.key].label}
+                            onChange={(e) => handleUpdateCheckoutField(f.key, 'label', e.target.value)}
+                            className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl focus:border-cyan-500 text-white outline-none font-sans"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-mono text-slate-400 block mb-1">
+                            Placeholder Text
+                          </label>
+                          <input
+                            type="text"
+                            value={checkoutForm[f.key].placeholder}
+                            onChange={(e) => handleUpdateCheckoutField(f.key, 'placeholder', e.target.value)}
+                            className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl focus:border-cyan-500 text-white outline-none font-sans"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-mono text-slate-400 block mb-1">
+                            Helper / Subtext
+                          </label>
+                          <input
+                            type="text"
+                            value={checkoutForm[f.key].helperText || ''}
+                            onChange={(e) => handleUpdateCheckoutField(f.key, 'helperText', e.target.value)}
+                            className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-xl focus:border-cyan-500 text-white outline-none font-sans"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Checkout Notice Banner Editor */}
+              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-2">
+                <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                  <span>Checkout Information Banner Text</span>
+                  <span className="text-[10px] font-mono text-slate-500">Displayed at top of checkout modal</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={checkoutForm.checkoutNoticeText || ''}
+                  onChange={(e) => setCheckoutForm((prev) => ({ ...prev, checkoutNoticeText: e.target.value }))}
+                  placeholder="Instructions displayed to customers when opening checkout..."
+                  className="w-full p-3 bg-black/40 border border-white/10 rounded-xl focus:border-cyan-500 text-white text-xs outline-none font-sans leading-relaxed"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                <button
+                  type="submit"
+                  className="w-full sm:flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold text-xs py-3 px-4 rounded-xl shadow-[0_0_20px_rgba(6,182,212,0.3)] transition flex items-center justify-center gap-2 cursor-pointer font-mono"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Save Checkout Configuration</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetCheckoutDefaults}
+                  className="w-full sm:w-auto px-4 py-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 hover:text-white rounded-xl text-xs font-mono transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Reset Default Fields</span>
+                </button>
+              </div>
+
+            </form>
+          )}
+
+          {/* TAB 5: RECENT ORDERS WITH CREDENTIALS */}
           {activeTab === 'orders' && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {orders.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  <Package className="w-12 h-12 mx-auto text-gray-300 mb-2" />
-                  <p className="text-sm font-bold text-gray-700">No orders placed yet</p>
-                  <p className="text-xs text-gray-500">
-                    Place a test order from the storefront cart to see incoming records here!
+                <div className="text-center py-16 text-slate-500 space-y-2">
+                  <Package className="w-12 h-12 mx-auto text-slate-600 mb-2" />
+                  <p className="text-sm font-bold text-slate-300">No customer orders placed yet</p>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto font-mono">
+                    Place a test order from the storefront cart to see incoming customer credentials, passwords, and details here!
                   </p>
                 </div>
               ) : (
-                orders.map((ord) => (
-                  <div key={ord.orderId} className="p-4 rounded-xl border border-gray-200 bg-gray-50 space-y-2 text-xs">
-                    <div className="flex items-center justify-between border-b border-gray-200 pb-2">
-                      <span className="font-extrabold text-gray-900 text-sm">
-                        Order #{ord.orderId}
-                      </span>
-                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                        {ord.status}
-                      </span>
-                    </div>
+                orders.map((ord) => {
+                  const summaryText = [
+                    `📦 SUBPRIME ORDER #${ord.orderId}`,
+                    `Date: ${new Date(ord.createdAt).toLocaleString()}`,
+                    `Customer: ${ord.customer.fullName}`,
+                    `Delivery Email: ${ord.customer.email}`,
+                    `Activation Target: ${ord.customer.activationEmailOrAccount || ord.customer.email}`,
+                    ord.customer.accountPassword ? `Account Password: ${ord.customer.accountPassword}` : null,
+                    ord.customer.redditUsername ? `Reddit: u/${ord.customer.redditUsername.replace(/^u\//, '')}` : null,
+                    ord.customer.telegramOrWhatsapp ? `Telegram/WhatsApp: ${ord.customer.telegramOrWhatsapp}` : null,
+                    ord.customer.customFieldValue ? `Custom Detail: ${ord.customer.customFieldValue}` : null,
+                    ord.customer.notes ? `Payment / Notes: ${ord.customer.notes}` : null,
+                    ``,
+                    `Items Ordered:`,
+                    ...ord.items.map((it) => `• ${it.productTitle} (${it.planLabel}) x${it.quantity} - ${settings.currencySymbol}${it.price}`),
+                    `Total: ${settings.currencySymbol}${ord.totalAmount.toFixed(2)}`
+                  ].filter(Boolean).join('\n');
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-700">
-                      <div>
-                        <strong>Customer:</strong> {ord.customer.fullName} ({ord.customer.email})
+                  return (
+                    <div 
+                      key={ord.orderId} 
+                      className="p-4 sm:p-5 rounded-2xl border border-white/[0.08] bg-[#0c101c] space-y-3.5 text-xs shadow-xl"
+                    >
+                      {/* Order Header */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-display font-extrabold text-white text-base">
+                            Order #{ord.orderId}
+                          </span>
+                          <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-2.5 py-0.5 rounded-full">
+                            {ord.status}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-mono text-slate-400">
+                            {new Date(ord.createdAt).toLocaleString()}
+                          </span>
+                          <button
+                            onClick={() => handleCopyCredential(summaryText, `order-${ord.orderId}`)}
+                            className="px-2.5 py-1 text-[11px] bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 rounded-lg text-slate-300 flex items-center gap-1 font-mono transition"
+                            title="Copy complete order summary to clipboard"
+                          >
+                            {copiedCredential === `order-${ord.orderId}` ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span className="text-emerald-400 font-bold">Summary Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3 text-cyan-400" />
+                                <span>Copy Summary</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                      <div>
-                        <strong>Reddit:</strong> {ord.customer.redditUsername || 'None'}
-                      </div>
-                      <div>
-                        <strong>Activation Target:</strong> {ord.customer.activationEmailOrAccount || ord.customer.email}
-                      </div>
-                      <div>
-                        <strong>Time:</strong> {new Date(ord.createdAt).toLocaleString()}
-                      </div>
-                    </div>
 
-                    <div className="border-t border-gray-200 pt-2">
-                      <div className="font-bold text-gray-900 mb-1">Ordered Items:</div>
-                      <ul className="list-disc list-inside space-y-0.5 text-gray-600">
-                        {ord.items.map((item, idx) => (
-                          <li key={idx}>
-                            {item.productTitle} ({item.planLabel}) x{item.quantity} - {settings.currencySymbol}{item.price}
-                          </li>
-                        ))}
-                      </ul>
-                      <div className="mt-2 font-black text-gray-900 text-right">
-                        Total: {settings.currencySymbol}{ord.totalAmount.toFixed(2)}
+                      {/* Customer Details Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-slate-300 font-mono text-xs">
+                        <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                          <span className="text-[10px] text-slate-500 uppercase block font-bold">Customer Name</span>
+                          <span className="text-white font-bold">{ord.customer.fullName}</span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] text-slate-500 uppercase block font-bold">Delivery Email</span>
+                            <span className="text-white break-all">{ord.customer.email}</span>
+                          </div>
+                          <button
+                            onClick={() => handleCopyCredential(ord.customer.email, `email-${ord.orderId}`)}
+                            className="p-1 hover:text-cyan-400 transition ml-1"
+                            title="Copy email"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] text-cyan-400 uppercase block font-bold">Activation Target</span>
+                            <span className="text-cyan-200 font-bold break-all">
+                              {ord.customer.activationEmailOrAccount || ord.customer.email}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleCopyCredential(ord.customer.activationEmailOrAccount || ord.customer.email, `act-${ord.orderId}`)}
+                            className="p-1 hover:text-cyan-400 transition ml-1"
+                            title="Copy activation target"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        {ord.customer.redditUsername && (
+                          <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                            <span className="text-[10px] text-orange-400 uppercase block font-bold">Reddit Username</span>
+                            <a 
+                              href={`https://www.reddit.com/user/${ord.customer.redditUsername.replace(/^u\//, '')}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-orange-300 hover:underline flex items-center gap-1 font-bold"
+                            >
+                              <span>u/{ord.customer.redditUsername.replace(/^u\//, '')}</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        )}
+
+                        {ord.customer.telegramOrWhatsapp && (
+                          <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] text-sky-400 uppercase block font-bold">Telegram / WhatsApp</span>
+                              <span className="text-sky-200 font-bold">{ord.customer.telegramOrWhatsapp}</span>
+                            </div>
+                            <button
+                              onClick={() => handleCopyCredential(ord.customer.telegramOrWhatsapp || '', `chat-${ord.orderId}`)}
+                              className="p-1 hover:text-sky-400 transition ml-1"
+                              title="Copy handle"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+
+                        {ord.customer.customFieldValue && (
+                          <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                            <span className="text-[10px] text-pink-400 uppercase block font-bold">Custom Requirement</span>
+                            <span className="text-pink-200">{ord.customer.customFieldValue}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Account Password Highlight Box (If provided by customer) */}
+                      {ord.customer.accountPassword && (
+                        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300">
+                              <KeyRound className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-mono text-amber-400 uppercase font-bold tracking-wider block">
+                                Customer Account Password / Access PIN
+                              </span>
+                              <span className="font-mono text-sm text-white font-black tracking-widest">
+                                {revealedPasswords[ord.orderId] ? ord.customer.accountPassword : '••••••••••••'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setRevealedPasswords((prev) => ({ ...prev, [ord.orderId]: !prev[ord.orderId] }))}
+                              className="px-2.5 py-1.5 text-xs bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 rounded-xl text-slate-300 flex items-center gap-1.5 font-mono transition cursor-pointer"
+                            >
+                              {revealedPasswords[ord.orderId] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              <span>{revealedPasswords[ord.orderId] ? 'Hide' : 'Reveal'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleCopyCredential(ord.customer.accountPassword || '', `pass-${ord.orderId}`)}
+                              className="px-3 py-1.5 text-xs bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded-xl text-amber-300 flex items-center gap-1.5 font-mono font-bold transition cursor-pointer"
+                            >
+                              {copiedCredential === `pass-${ord.orderId}` ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span className="text-emerald-400">Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Copy Password</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Payment Notes if any */}
+                      {ord.customer.notes && (
+                        <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] text-xs">
+                          <span className="text-[10px] font-mono text-slate-500 uppercase font-bold block mb-0.5">
+                            Customer Payment Notes / Preference:
+                          </span>
+                          <p className="text-slate-300 font-sans italic">{ord.customer.notes}</p>
+                        </div>
+                      )}
+
+                      {/* Ordered Items Breakdown */}
+                      <div className="border-t border-white/[0.06] pt-3">
+                        <div className="font-mono font-bold text-slate-400 text-[11px] mb-2 uppercase">
+                          Purchased Items:
+                        </div>
+                        <div className="space-y-1.5">
+                          {ord.items.map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/[0.02]">
+                              <div className="flex items-center gap-2">
+                                <span className="text-white font-bold">{item.productTitle}</span>
+                                <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.2 rounded border border-cyan-800/40">
+                                  {item.planLabel}
+                                </span>
+                                <span className="text-slate-400 font-mono">x{item.quantity}</span>
+                              </div>
+                              <span className="font-mono font-bold text-slate-200">
+                                {settings.currencySymbol}{item.price}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between pt-2 border-t border-white/[0.06]">
+                          <div className="flex items-center gap-2">
+                            {settings.redditUsername && (
+                              <a
+                                href={buildRedditDmUrl(settings.redditUsername, ord, settings)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-3 py-1.5 bg-[#FF4500]/15 hover:bg-[#FF4500]/25 border border-[#FF4500]/30 rounded-xl text-orange-300 font-mono text-[11px] font-bold flex items-center gap-1.5 transition"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>Open Pre-filled Reddit DM</span>
+                              </a>
+                            )}
+                            <a
+                              href={`mailto:${ord.customer.email}?subject=${encodeURIComponent(`SubPrime Store - Order #${ord.orderId} Delivery`)}`}
+                              className="px-3 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 rounded-xl text-slate-300 font-mono text-[11px] flex items-center gap-1.5 transition"
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                              <span>Email Customer</span>
+                            </a>
+                          </div>
+
+                          <div className="font-display font-extrabold text-white text-sm">
+                            Total: <span className="text-cyan-400">{settings.currencySymbol}{ord.totalAmount.toFixed(2)}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           )}

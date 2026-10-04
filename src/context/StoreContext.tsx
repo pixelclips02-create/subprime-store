@@ -9,7 +9,7 @@ import {
   CategoryId,
   UserAccount 
 } from '../types';
-import { DEFAULT_PRODUCTS, DEFAULT_SETTINGS } from '../data/defaultProducts';
+import { DEFAULT_PRODUCTS, DEFAULT_SETTINGS, DEFAULT_CHECKOUT_SETTINGS } from '../data/defaultProducts';
 import { sendOrderNotificationEmail } from '../services/emailService';
 
 interface StoreContextType {
@@ -109,6 +109,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
         if (parsed.developerPin === '1234' || !parsed.developerPin) {
           parsed.developerPin = '022005';
+        }
+        if (!parsed.checkoutSettings) {
+          parsed.checkoutSettings = DEFAULT_CHECKOUT_SETTINGS;
+        } else {
+          parsed.checkoutSettings = {
+            ...DEFAULT_CHECKOUT_SETTINGS,
+            ...parsed.checkoutSettings,
+            fullName: { ...DEFAULT_CHECKOUT_SETTINGS.fullName, ...(parsed.checkoutSettings.fullName || {}) },
+            deliveryEmail: { ...DEFAULT_CHECKOUT_SETTINGS.deliveryEmail, ...(parsed.checkoutSettings.deliveryEmail || {}) },
+            activationEmail: { ...DEFAULT_CHECKOUT_SETTINGS.activationEmail, ...(parsed.checkoutSettings.activationEmail || {}) },
+            accountPassword: { ...DEFAULT_CHECKOUT_SETTINGS.accountPassword, ...(parsed.checkoutSettings.accountPassword || {}) },
+            redditUsername: { ...DEFAULT_CHECKOUT_SETTINGS.redditUsername, ...(parsed.checkoutSettings.redditUsername || {}) },
+            telegramOrWhatsapp: { ...DEFAULT_CHECKOUT_SETTINGS.telegramOrWhatsapp, ...(parsed.checkoutSettings.telegramOrWhatsapp || {}) },
+            paymentNotes: { ...DEFAULT_CHECKOUT_SETTINGS.paymentNotes, ...(parsed.checkoutSettings.paymentNotes || {}) },
+            customField: { ...DEFAULT_CHECKOUT_SETTINGS.customField, ...(parsed.checkoutSettings.customField || {}) },
+          };
         }
         return parsed;
       }
