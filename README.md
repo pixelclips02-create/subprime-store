@@ -26,11 +26,12 @@ Store owners have direct access to a private Developer Portal:
 1. **Stock & Inventory**: 1-click toggling between `[IN STOCK]` and `[OUT OF STOCK]` with live restock inquiry links.
 2. **Dynamic Pricing & Plans**: Inline price editors and multi-tier plan management.
 3. **Checkout Fields & Rules**:
-   - Toggle visibility (`Show Field`) for any checkout field.
-   - Set mandatory fields with `Required (*)` enforcement.
-   - Support for **Customer Account Password / Access PIN** (with masked display & 1-click copy).
-   - Editable field titles, placeholder text, and helper subtext.
-   - Customizable checkout announcement notice banner.
+   - Store-wide checkout configuration via the **Checkout Fields & Rules** tab.
+   - **Product-by-Product Checkout Customization**: Configure checkout fields directly inside **Product Edit** (`Edit Details & Plans`) or when adding a new subscription.
+   - Toggle **Account Password / Access PIN** (Required `*` / Optional / Hidden) per product.
+   - Set custom field labels, placeholders, and helper instructions per product.
+   - Add product-specific checkout announcement notices.
+   - **Smart Cart-Aware Checkout Page**: Checkout dynamically analyzes the items in cart—requesting passwords and displaying notices only when required by items being purchased!
 4. **Order Management & Fulfillment**:
    - View recent customer orders.
    - Copy customer passwords and credentials with 1 click.
