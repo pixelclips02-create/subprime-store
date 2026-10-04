@@ -30,7 +30,7 @@ import {
   Sparkles 
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
-import { Product, CategoryId, PlanOption, CheckoutSettings, CheckoutFieldConfig } from '../types';
+import { Product, CategoryId, PlanOption, CheckoutSettings, CheckoutFieldConfig, ProductCheckoutConfig, FieldRequirementLevel } from '../types';
 import { CATEGORIES, DEFAULT_CHECKOUT_SETTINGS } from '../data/defaultProducts';
 import { buildRedditDmUrl } from '../services/emailService';
 
@@ -104,6 +104,33 @@ export const AdminModal: React.FC = () => {
   const [copiedCredential, setCopiedCredential] = useState<string | null>(null);
   const [revealedPasswords, setRevealedPasswords] = useState<{ [orderId: string]: boolean }>({});
 
+  // Product-specific checkout settings state (Edit Product)
+  const [editCheckoutUseCustom, setEditCheckoutUseCustom] = useState(false);
+  const [editRequirePassword, setEditRequirePassword] = useState<FieldRequirementLevel>('hidden');
+  const [editPasswordLabel, setEditPasswordLabel] = useState('');
+  const [editPasswordHelperText, setEditPasswordHelperText] = useState('');
+
+  const [editRequireActivationEmail, setEditRequireActivationEmail] = useState<FieldRequirementLevel>('optional');
+  const [editActivationEmailLabel, setEditActivationEmailLabel] = useState('');
+  const [editActivationEmailPlaceholder, setEditActivationEmailPlaceholder] = useState('');
+
+  const [editRequireCustomField, setEditRequireCustomField] = useState<FieldRequirementLevel>('hidden');
+  const [editCustomFieldLabel, setEditCustomFieldLabel] = useState('');
+  const [editCustomFieldPlaceholder, setEditCustomFieldPlaceholder] = useState('');
+
+  const [editProductCheckoutNotice, setEditProductCheckoutNotice] = useState('');
+
+  // Product-specific checkout settings state (New Product)
+  const [newCheckoutUseCustom, setNewCheckoutUseCustom] = useState(false);
+  const [newRequirePassword, setNewRequirePassword] = useState<FieldRequirementLevel>('hidden');
+  const [newPasswordLabel, setNewPasswordLabel] = useState('');
+  const [newPasswordHelperText, setNewPasswordHelperText] = useState('');
+  const [newRequireActivationEmail, setNewRequireActivationEmail] = useState<FieldRequirementLevel>('optional');
+  const [newActivationEmailLabel, setNewActivationEmailLabel] = useState('');
+  const [newRequireCustomField, setNewRequireCustomField] = useState<FieldRequirementLevel>('hidden');
+  const [newCustomFieldLabel, setNewCustomFieldLabel] = useState('');
+  const [newProductCheckoutNotice, setNewProductCheckoutNotice] = useState('');
+
   // Sync settings when external changes occur
   useEffect(() => {
     if (settings.checkoutSettings) {
@@ -127,6 +154,41 @@ export const AdminModal: React.FC = () => {
     setEditInStock(prod.inStock !== false);
     setEditPlans(Array.isArray(prod.plans) ? prod.plans.map(p => ({ ...p })) : []);
     setEditSuccess('');
+
+    // Load product-specific checkout configuration
+    const cfg = prod.checkoutConfig;
+    if (cfg && cfg.useCustomRules) {
+      setEditCheckoutUseCustom(true);
+      setEditRequirePassword(cfg.passwordRequirement || 'hidden');
+      setEditPasswordLabel(cfg.passwordLabel || '');
+      setEditPasswordHelperText(cfg.passwordHelperText || '');
+
+      setEditRequireActivationEmail(cfg.activationEmailRequirement || 'optional');
+      setEditActivationEmailLabel(cfg.activationEmailLabel || '');
+      setEditActivationEmailPlaceholder(cfg.activationEmailPlaceholder || '');
+
+      setEditRequireCustomField(cfg.customFieldRequirement || 'hidden');
+      setEditCustomFieldLabel(cfg.customFieldLabel || '');
+      setEditCustomFieldPlaceholder(cfg.customFieldPlaceholder || '');
+
+      setEditProductCheckoutNotice(cfg.checkoutNotice || '');
+    } else {
+      setEditCheckoutUseCustom(false);
+      setEditRequirePassword('hidden');
+      setEditPasswordLabel('');
+      setEditPasswordHelperText('');
+
+      setEditRequireActivationEmail('optional');
+      setEditActivationEmailLabel('');
+      setEditActivationEmailPlaceholder('');
+
+      setEditRequireCustomField('hidden');
+      setEditCustomFieldLabel('');
+      setEditCustomFieldPlaceholder('');
+
+      setEditProductCheckoutNotice('');
+    }
+
     setActiveTab('edit');
   };
 
@@ -239,7 +301,18 @@ export const AdminModal: React.FC = () => {
       activationType: newActivationType,
       activationDetails: `Direct ${newActivationType} activation delivered to your provided email or Reddit handle.`,
       iconName: 'Zap',
-      tags: [newCategory, newTitle.toLowerCase()]
+      tags: [newCategory, newTitle.toLowerCase()],
+      checkoutConfig: newCheckoutUseCustom ? {
+        useCustomRules: true,
+        passwordRequirement: newRequirePassword,
+        passwordLabel: newPasswordLabel.trim() || undefined,
+        passwordHelperText: newPasswordHelperText.trim() || undefined,
+        activationEmailRequirement: newRequireActivationEmail,
+        activationEmailLabel: newActivationEmailLabel.trim() || undefined,
+        customFieldRequirement: newRequireCustomField,
+        customFieldLabel: newCustomFieldLabel.trim() || undefined,
+        checkoutNotice: newProductCheckoutNotice.trim() || undefined,
+      } : undefined
     });
 
     setFormSuccess(`Added "${newTitle}" to the store!`);
@@ -250,8 +323,6 @@ export const AdminModal: React.FC = () => {
       setActiveTab('inventory');
     }, 1500);
   };
-
-
 
   const handleUpdatePlan = (index: number, field: keyof PlanOption, value: any) => {
     setEditPlans((prev) => {
@@ -295,10 +366,28 @@ export const AdminModal: React.FC = () => {
       features: featureList,
       plans: editPlans,
       inStock: editInStock,
-      activationType: editActivationType
+      activationType: editActivationType,
+      checkoutConfig: editCheckoutUseCustom ? {
+        useCustomRules: true,
+        passwordRequirement: editRequirePassword,
+        passwordLabel: editPasswordLabel.trim() || undefined,
+        passwordHelperText: editPasswordHelperText.trim() || undefined,
+        activationEmailRequirement: editRequireActivationEmail,
+        activationEmailLabel: editActivationEmailLabel.trim() || undefined,
+        activationEmailPlaceholder: editActivationEmailPlaceholder.trim() || undefined,
+        customFieldRequirement: editRequireCustomField,
+        customFieldLabel: editCustomFieldLabel.trim() || undefined,
+        customFieldPlaceholder: editCustomFieldPlaceholder.trim() || undefined,
+        checkoutNotice: editProductCheckoutNotice.trim() || undefined,
+      } : {
+        useCustomRules: false,
+        passwordRequirement: 'hidden',
+        activationEmailRequirement: 'optional',
+        customFieldRequirement: 'hidden',
+      }
     });
 
-    setEditSuccess(`Updated "${editTitle}" pricing and details!`);
+    setEditSuccess(`Updated "${editTitle}" pricing, details & checkout rules!`);
     setTimeout(() => {
       setEditSuccess('');
       setActiveTab('inventory');
@@ -599,6 +688,15 @@ export const AdminModal: React.FC = () => {
                         {prod.id === 'chatgpt-plus' && !prod.inStock && (
                           <span className="text-[10px] font-mono font-bold bg-rose-900/60 text-rose-300 border border-rose-700/60 px-2 py-0.5 rounded-md">
                             Restock Request Active
+                          </span>
+                        )}
+                        {prod.checkoutConfig?.useCustomRules && (
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                            prod.checkoutConfig.passwordRequirement === 'required'
+                              ? 'bg-amber-950/80 text-amber-300 border-amber-700/60'
+                              : 'bg-indigo-950/80 text-indigo-300 border-indigo-700/60'
+                          }`}>
+                            {prod.checkoutConfig.passwordRequirement === 'required' ? '🔑 Pass Required' : '⚡ Custom Checkout'}
                           </span>
                         )}
                       </div>
@@ -917,6 +1015,296 @@ export const AdminModal: React.FC = () => {
                 />
               </div>
 
+              {/* Product Checkout Page Requirements Section */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-indigo-500/[0.05] border border-indigo-500/25 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/[0.06]">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300">
+                      <CheckSquare className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <h4 className="font-display font-bold text-sm text-white">
+                        Checkout Requirements for this Product
+                      </h4>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        Configure what fields appear on checkout when a customer buys this product.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle: Use Custom or Default */}
+                  <label className="flex items-center gap-2 text-xs font-mono cursor-pointer select-none bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 rounded-xl hover:bg-white/[0.08] transition">
+                    <input
+                      type="checkbox"
+                      checked={editCheckoutUseCustom}
+                      onChange={(e) => setEditCheckoutUseCustom(e.target.checked)}
+                      className="w-4 h-4 rounded text-cyan-500 bg-black/40 border-white/20 focus:ring-cyan-500 cursor-pointer"
+                    />
+                    <span className={editCheckoutUseCustom ? 'text-cyan-300 font-bold' : 'text-slate-400'}>
+                      {editCheckoutUseCustom ? 'Custom Checkout Rules Active' : 'Use Store Defaults'}
+                    </span>
+                  </label>
+                </div>
+
+                {!editCheckoutUseCustom ? (
+                  <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] text-xs text-slate-400 font-mono flex items-center gap-2">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <span>This product currently inherits your global store-wide checkout rules. Tick &ldquo;Custom Checkout Rules Active&rdquo; above to customize password or fields for this product.</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3.5 pt-1">
+                    {/* 1. Account Password / PIN Requirement */}
+                    <div className="p-3.5 rounded-xl bg-black/40 border border-amber-500/25 space-y-2.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <KeyRound className="w-4 h-4 text-amber-400" />
+                          <span className="text-xs font-bold text-amber-300">
+                            Account Password / Access PIN
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            (for login/upgrade activations)
+                          </span>
+                        </div>
+
+                        {/* Tri-state selector: Required / Optional / Hidden */}
+                        <div className="flex items-center gap-1 bg-white/[0.04] p-1 rounded-lg border border-white/[0.08] text-xs font-mono">
+                          <button
+                            type="button"
+                            onClick={() => setEditRequirePassword('required')}
+                            className={`px-2.5 py-1 rounded transition text-[11px] font-bold cursor-pointer ${
+                              editRequirePassword === 'required'
+                                ? 'bg-rose-500 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            * Required
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditRequirePassword('optional')}
+                            className={`px-2.5 py-1 rounded transition text-[11px] font-bold cursor-pointer ${
+                              editRequirePassword === 'optional'
+                                ? 'bg-amber-500 text-black shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Optional
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditRequirePassword('hidden')}
+                            className={`px-2.5 py-1 rounded transition text-[11px] font-bold cursor-pointer ${
+                              editRequirePassword === 'hidden'
+                                ? 'bg-slate-700 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Hidden
+                          </button>
+                        </div>
+                      </div>
+
+                      {editRequirePassword !== 'hidden' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+                          <div>
+                            <label className="text-[11px] font-mono text-slate-400 block mb-1">
+                              Custom Password Field Label
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Existing Netflix Account Password"
+                              value={editPasswordLabel}
+                              onChange={(e) => setEditPasswordLabel(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-black/60 border border-white/10 rounded-xl text-white outline-none focus:border-amber-400 text-xs font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-mono text-slate-400 block mb-1">
+                              Helper Instructions for Password
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. We will log in securely to apply the upgrade"
+                              value={editPasswordHelperText}
+                              onChange={(e) => setEditPasswordHelperText(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-black/60 border border-white/10 rounded-xl text-white outline-none focus:border-amber-400 text-xs"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 2. Activation Email / Account ID Requirement */}
+                    <div className="p-3.5 rounded-xl bg-black/40 border border-cyan-500/25 space-y-2.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-cyan-400" />
+                          <span className="text-xs font-bold text-cyan-300">
+                            Account Email / ID for Activation
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 bg-white/[0.04] p-1 rounded-lg border border-white/[0.08] text-xs font-mono">
+                          <button
+                            type="button"
+                            onClick={() => setEditRequireActivationEmail('required')}
+                            className={`px-2.5 py-1 rounded transition text-[11px] font-bold cursor-pointer ${
+                              editRequireActivationEmail === 'required'
+                                ? 'bg-rose-500 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            * Required
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditRequireActivationEmail('optional')}
+                            className={`px-2.5 py-1 rounded transition text-[11px] font-bold cursor-pointer ${
+                              editRequireActivationEmail === 'optional'
+                                ? 'bg-cyan-500 text-black shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Optional
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditRequireActivationEmail('hidden')}
+                            className={`px-2.5 py-1 rounded transition text-[11px] font-bold cursor-pointer ${
+                              editRequireActivationEmail === 'hidden'
+                                ? 'bg-slate-700 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Hidden
+                          </button>
+                        </div>
+                      </div>
+
+                      {editRequireActivationEmail !== 'hidden' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+                          <div>
+                            <label className="text-[11px] font-mono text-slate-400 block mb-1">
+                              Custom Activation Email Label
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Canva Account Email"
+                              value={editActivationEmailLabel}
+                              onChange={(e) => setEditActivationEmailLabel(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-black/60 border border-white/10 rounded-xl text-white outline-none focus:border-cyan-400 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-mono text-slate-400 block mb-1">
+                              Input Placeholder
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. user@canva.com"
+                              value={editActivationEmailPlaceholder}
+                              onChange={(e) => setEditActivationEmailPlaceholder(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-black/60 border border-white/10 rounded-xl text-white outline-none focus:border-cyan-400 text-xs"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 3. Custom Field Requirement */}
+                    <div className="p-3.5 rounded-xl bg-black/40 border border-pink-500/25 space-y-2.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-pink-400" />
+                          <span className="text-xs font-bold text-pink-300">
+                            Custom Order Requirement
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 bg-white/[0.04] p-1 rounded-lg border border-white/[0.08] text-xs font-mono">
+                          <button
+                            type="button"
+                            onClick={() => setEditRequireCustomField('required')}
+                            className={`px-2.5 py-1 rounded transition text-[11px] font-bold cursor-pointer ${
+                              editRequireCustomField === 'required'
+                                ? 'bg-rose-500 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            * Required
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditRequireCustomField('optional')}
+                            className={`px-2.5 py-1 rounded transition text-[11px] font-bold cursor-pointer ${
+                              editRequireCustomField === 'optional'
+                                ? 'bg-pink-500 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Optional
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditRequireCustomField('hidden')}
+                            className={`px-2.5 py-1 rounded transition text-[11px] font-bold cursor-pointer ${
+                              editRequireCustomField === 'hidden'
+                                ? 'bg-slate-700 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Hidden
+                          </button>
+                        </div>
+                      </div>
+
+                      {editRequireCustomField !== 'hidden' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+                          <div>
+                            <label className="text-[11px] font-mono text-slate-400 block mb-1">
+                              Field Label
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Profile Name to Upgrade / Discord ID"
+                              value={editCustomFieldLabel}
+                              onChange={(e) => setEditCustomFieldLabel(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-black/60 border border-white/10 rounded-xl text-white outline-none focus:border-pink-400 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-mono text-slate-400 block mb-1">
+                              Placeholder
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Profile 1"
+                              value={editCustomFieldPlaceholder}
+                              onChange={(e) => setEditCustomFieldPlaceholder(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-black/60 border border-white/10 rounded-xl text-white outline-none focus:border-pink-400 text-xs"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 4. Product Checkout Notice Banner */}
+                    <div className="p-3.5 rounded-xl bg-black/40 border border-white/[0.08] space-y-1.5">
+                      <label className="text-xs font-bold text-slate-300 block">
+                        Special Checkout Notice for this Product
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={editProductCheckoutNotice}
+                        onChange={(e) => setEditProductCheckoutNotice(e.target.value)}
+                        placeholder="Instructions displayed on checkout when this product is in the cart (e.g. 'Please turn off 2FA or stay available on Reddit for verification code')."
+                        className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-xl text-white outline-none focus:border-cyan-400 text-xs font-sans leading-relaxed"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center gap-3 pt-2">
                 <button
                   type="submit"
@@ -1090,6 +1478,144 @@ export const AdminModal: React.FC = () => {
                   onChange={(e) => setNewDescription(e.target.value)}
                   className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
+              </div>
+
+              {/* Product Checkout Page Requirements Section for New Product */}
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+                  <div>
+                    <h4 className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                      <CheckSquare className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Checkout Page Requirements</span>
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      Configure password, activation email or custom field for this product.
+                    </p>
+                  </div>
+
+                  <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={newCheckoutUseCustom}
+                      onChange={(e) => setNewCheckoutUseCustom(e.target.checked)}
+                      className="w-4 h-4 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span className={newCheckoutUseCustom ? 'text-indigo-600 font-bold' : 'text-gray-500'}>
+                      {newCheckoutUseCustom ? 'Custom Rules' : 'Use Store Defaults'}
+                    </span>
+                  </label>
+                </div>
+
+                {newCheckoutUseCustom && (
+                  <div className="space-y-3 pt-1 text-xs">
+                    {/* Password */}
+                    <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-amber-900 flex items-center gap-1 text-[11px]">
+                          <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                          Account Password / PIN
+                        </span>
+                        <select
+                          value={newRequirePassword}
+                          onChange={(e) => setNewRequirePassword(e.target.value as FieldRequirementLevel)}
+                          className="px-2 py-0.5 text-[11px] border border-amber-300 rounded bg-white text-gray-800"
+                        >
+                          <option value="hidden">Hidden / Not Needed</option>
+                          <option value="optional">Optional</option>
+                          <option value="required">* Required</option>
+                        </select>
+                      </div>
+                      {newRequirePassword !== 'hidden' && (
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <input
+                            type="text"
+                            placeholder="Custom password label..."
+                            value={newPasswordLabel}
+                            onChange={(e) => setNewPasswordLabel(e.target.value)}
+                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Password instructions..."
+                            value={newPasswordHelperText}
+                            onChange={(e) => setNewPasswordHelperText(e.target.value)}
+                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Activation Email */}
+                    <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-blue-900 flex items-center gap-1 text-[11px]">
+                          <Mail className="w-3.5 h-3.5 text-blue-600" />
+                          Account Email / Target ID
+                        </span>
+                        <select
+                          value={newRequireActivationEmail}
+                          onChange={(e) => setNewRequireActivationEmail(e.target.value as FieldRequirementLevel)}
+                          className="px-2 py-0.5 text-[11px] border border-blue-300 rounded bg-white text-gray-800"
+                        >
+                          <option value="hidden">Hidden / Not Needed</option>
+                          <option value="optional">Optional</option>
+                          <option value="required">* Required</option>
+                        </select>
+                      </div>
+                      {newRequireActivationEmail !== 'hidden' && (
+                        <input
+                          type="text"
+                          placeholder="Custom email label (e.g. Canva Account Email)..."
+                          value={newActivationEmailLabel}
+                          onChange={(e) => setNewActivationEmailLabel(e.target.value)}
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white"
+                        />
+                      )}
+                    </div>
+
+                    {/* Custom Field */}
+                    <div className="p-2.5 rounded-lg bg-pink-50 border border-pink-200 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-pink-900 flex items-center gap-1 text-[11px]">
+                          <FileText className="w-3.5 h-3.5 text-pink-600" />
+                          Custom Requirement Field
+                        </span>
+                        <select
+                          value={newRequireCustomField}
+                          onChange={(e) => setNewRequireCustomField(e.target.value as FieldRequirementLevel)}
+                          className="px-2 py-0.5 text-[11px] border border-pink-300 rounded bg-white text-gray-800"
+                        >
+                          <option value="hidden">Hidden / Not Needed</option>
+                          <option value="optional">Optional</option>
+                          <option value="required">* Required</option>
+                        </select>
+                      </div>
+                      {newRequireCustomField !== 'hidden' && (
+                        <input
+                          type="text"
+                          placeholder="Field label (e.g. Profile Name to Upgrade)..."
+                          value={newCustomFieldLabel}
+                          onChange={(e) => setNewCustomFieldLabel(e.target.value)}
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white"
+                        />
+                      )}
+                    </div>
+
+                    {/* Notice */}
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-700 block mb-0.5">
+                        Special Checkout Notice for this Product
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Instructions displayed at checkout when this item is in cart..."
+                        value={newProductCheckoutNotice}
+                        onChange={(e) => setNewProductCheckoutNotice(e.target.value)}
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button

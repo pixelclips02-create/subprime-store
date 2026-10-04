@@ -135,7 +135,15 @@ export const DEFAULT_PRODUCTS: Product[] = [
     activationType: 'link',
     activationDetails: 'Direct official activation link sent to your email / Reddit DM. No password needed.',
     iconName: 'Youtube',
-    tags: ['youtube', 'streaming', 'music', 'ad-free', 'entertainment']
+    tags: ['youtube', 'streaming', 'music', 'ad-free', 'entertainment'],
+    checkoutConfig: {
+      useCustomRules: true,
+      passwordRequirement: 'hidden',
+      activationEmailRequirement: 'optional',
+      activationEmailLabel: 'YouTube Google Account Email',
+      customFieldRequirement: 'hidden',
+      checkoutNotice: 'Official YouTube activation link will be delivered directly. No account password required.'
+    }
   },
 
   // ENTERTAINMENT - Netflix
@@ -162,7 +170,19 @@ export const DEFAULT_PRODUCTS: Product[] = [
     activationType: 'account',
     activationDetails: 'Private account credentials delivered with 100% warranty.',
     iconName: 'Film',
-    tags: ['netflix', 'movies', 'series', '4k', 'entertainment']
+    tags: ['netflix', 'movies', 'series', '4k', 'entertainment'],
+    checkoutConfig: {
+      useCustomRules: true,
+      passwordRequirement: 'required',
+      passwordLabel: 'Netflix Account Password / PIN',
+      passwordHelperText: 'Required if you want us to log in and apply the 12-Month UHD upgrade',
+      activationEmailRequirement: 'required',
+      activationEmailLabel: 'Netflix Account Email',
+      customFieldRequirement: 'optional',
+      customFieldLabel: 'Profile Name to Upgrade',
+      customFieldPlaceholder: 'e.g. Profile 1',
+      checkoutNotice: '⚠️ Important: Please ensure 2FA is temporarily turned off or be ready to send the verification code on Reddit DM.'
+    }
   },
 
   // ENTERTAINMENT - Spotify Premium

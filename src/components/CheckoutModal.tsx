@@ -15,7 +15,8 @@ import {
   EyeOff,
   KeyRound,
   FileText,
-  Phone
+  Phone,
+  AlertCircle
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { CustomerOrderDetails } from '../types';
@@ -35,7 +36,157 @@ export const CheckoutModal: React.FC = () => {
     setAuthRedirectReason 
   } = useStore();
 
-  const cfg = settings.checkoutSettings || DEFAULT_CHECKOUT_SETTINGS;
+  const globalCfg = settings.checkoutSettings || DEFAULT_CHECKOUT_SETTINGS;
+
+  const cfg = React.useMemo(() => {
+    let passwordEnabled = globalCfg.accountPassword?.enabled ?? true;
+    let passwordRequired = globalCfg.accountPassword?.required ?? false;
+    let passwordLabel = globalCfg.accountPassword?.label || 'Existing Account Password / Access PIN';
+    let passwordHelper = globalCfg.accountPassword?.helperText || '🔒 Provided exclusively to the seller to log in and activate or upgrade your subscription.';
+
+    let actEmailEnabled = globalCfg.activationEmail?.enabled ?? true;
+    let actEmailRequired = globalCfg.activationEmail?.required ?? false;
+    let actEmailLabel = globalCfg.activationEmail?.label || 'Account Email / ID for Activation';
+    let actEmailPlaceholder = globalCfg.activationEmail?.placeholder || 'e.g. Canva, Coursera or YouTube account email';
+    let actEmailHelper = globalCfg.activationEmail?.helperText;
+
+    let customFieldEnabled = globalCfg.customField?.enabled ?? false;
+    let customFieldRequired = globalCfg.customField?.required ?? false;
+    let customFieldLabel = globalCfg.customField?.label || 'Additional Order Requirement';
+    let customFieldPlaceholder = globalCfg.customField?.placeholder || 'Enter requirement...';
+    let customFieldHelper = globalCfg.customField?.helperText;
+
+    const productNotices: { productTitle: string; notice: string }[] = [];
+    const passwordRequiredProducts: string[] = [];
+    const actEmailRequiredProducts: string[] = [];
+
+    const itemsWithCustomRules = cart.filter((item) => item.product.checkoutConfig?.useCustomRules);
+
+    if (itemsWithCustomRules.length > 0) {
+      // 1. Password resolution
+      const reqPasswordItems = itemsWithCustomRules.filter(
+        (i) => i.product.checkoutConfig?.passwordRequirement === 'required'
+      );
+      const optPasswordItems = itemsWithCustomRules.filter(
+        (i) => i.product.checkoutConfig?.passwordRequirement === 'optional'
+      );
+      const allHiddenPassword = itemsWithCustomRules.every(
+        (i) => i.product.checkoutConfig?.passwordRequirement === 'hidden'
+      );
+
+      if (reqPasswordItems.length > 0) {
+        passwordEnabled = true;
+        passwordRequired = true;
+        reqPasswordItems.forEach((i) => passwordRequiredProducts.push(i.product.title));
+        const first = reqPasswordItems[0].product.checkoutConfig;
+        if (first?.passwordLabel) passwordLabel = first.passwordLabel;
+        if (first?.passwordHelperText) passwordHelper = first.passwordHelperText;
+      } else if (optPasswordItems.length > 0) {
+        passwordEnabled = true;
+        passwordRequired = false;
+        const first = optPasswordItems[0].product.checkoutConfig;
+        if (first?.passwordLabel) passwordLabel = first.passwordLabel;
+        if (first?.passwordHelperText) passwordHelper = first.passwordHelperText;
+      } else if (allHiddenPassword) {
+        passwordEnabled = false;
+        passwordRequired = false;
+      }
+
+      // 2. Activation email resolution
+      const reqActEmailItems = itemsWithCustomRules.filter(
+        (i) => i.product.checkoutConfig?.activationEmailRequirement === 'required'
+      );
+      const optActEmailItems = itemsWithCustomRules.filter(
+        (i) => i.product.checkoutConfig?.activationEmailRequirement === 'optional'
+      );
+      const allHiddenActEmail = itemsWithCustomRules.every(
+        (i) => i.product.checkoutConfig?.activationEmailRequirement === 'hidden'
+      );
+
+      if (reqActEmailItems.length > 0) {
+        actEmailEnabled = true;
+        actEmailRequired = true;
+        reqActEmailItems.forEach((i) => actEmailRequiredProducts.push(i.product.title));
+        const first = reqActEmailItems[0].product.checkoutConfig;
+        if (first?.activationEmailLabel) actEmailLabel = first.activationEmailLabel;
+        if (first?.activationEmailPlaceholder) actEmailPlaceholder = first.activationEmailPlaceholder;
+      } else if (optActEmailItems.length > 0) {
+        actEmailEnabled = true;
+        actEmailRequired = false;
+        const first = optActEmailItems[0].product.checkoutConfig;
+        if (first?.activationEmailLabel) actEmailLabel = first.activationEmailLabel;
+      } else if (allHiddenActEmail) {
+        actEmailEnabled = false;
+        actEmailRequired = false;
+      }
+
+      // 3. Custom field resolution
+      const reqCustomFieldItems = itemsWithCustomRules.filter(
+        (i) => i.product.checkoutConfig?.customFieldRequirement === 'required'
+      );
+      const optCustomFieldItems = itemsWithCustomRules.filter(
+        (i) => i.product.checkoutConfig?.customFieldRequirement === 'optional'
+      );
+
+      if (reqCustomFieldItems.length > 0) {
+        customFieldEnabled = true;
+        customFieldRequired = true;
+        const first = reqCustomFieldItems[0].product.checkoutConfig;
+        if (first?.customFieldLabel) customFieldLabel = first.customFieldLabel;
+        if (first?.customFieldPlaceholder) customFieldPlaceholder = first.customFieldPlaceholder;
+      } else if (optCustomFieldItems.length > 0) {
+        customFieldEnabled = true;
+        customFieldRequired = false;
+        const first = optCustomFieldItems[0].product.checkoutConfig;
+        if (first?.customFieldLabel) customFieldLabel = first.customFieldLabel;
+        if (first?.customFieldPlaceholder) customFieldPlaceholder = first.customFieldPlaceholder;
+      }
+
+      // 4. Product notices
+      itemsWithCustomRules.forEach((i) => {
+        const notice = i.product.checkoutConfig?.checkoutNotice;
+        if (notice && notice.trim()) {
+          productNotices.push({
+            productTitle: i.product.title,
+            notice: notice.trim(),
+          });
+        }
+      });
+    }
+
+    return {
+      fullName: globalCfg.fullName,
+      deliveryEmail: globalCfg.deliveryEmail,
+      activationEmail: {
+        enabled: actEmailEnabled,
+        required: actEmailRequired,
+        label: actEmailLabel,
+        placeholder: actEmailPlaceholder,
+        helperText: actEmailHelper,
+      },
+      accountPassword: {
+        enabled: passwordEnabled,
+        required: passwordRequired,
+        label: passwordLabel,
+        placeholder: globalCfg.accountPassword?.placeholder || 'Account password (if activation requires logging in)',
+        helperText: passwordHelper,
+      },
+      redditUsername: globalCfg.redditUsername,
+      telegramOrWhatsapp: globalCfg.telegramOrWhatsapp,
+      paymentNotes: globalCfg.paymentNotes,
+      customField: {
+        enabled: customFieldEnabled,
+        required: customFieldRequired,
+        label: customFieldLabel,
+        placeholder: customFieldPlaceholder,
+        helperText: customFieldHelper,
+      },
+      checkoutNoticeText: globalCfg.checkoutNoticeText,
+      productNotices,
+      passwordRequiredProducts,
+      actEmailRequiredProducts,
+    };
+  }, [cart, globalCfg]);
 
   const [formData, setFormData] = useState<CustomerOrderDetails>(() => ({
     fullName: currentUser?.name || '',
@@ -195,13 +346,32 @@ export const CheckoutModal: React.FC = () => {
         {/* Info Banner */}
         <div className="bg-orange-500/10 border-b border-orange-500/20 px-5 py-3 text-xs text-orange-200 flex items-start gap-2.5">
           <Sparkles className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1">
             <strong className="font-bold text-white">Direct Reddit Payment Flow:</strong>
             <p className="text-orange-200/90 text-[11px] mt-0.5 leading-relaxed font-sans">
               {cfg.checkoutNoticeText || 'Enter your details below. When you confirm, we will notify the seller and immediately open a Reddit DM with your items pre-filled so you can pay (Crypto, PayPal, etc.) and get activated right on Reddit!'}
             </p>
           </div>
         </div>
+
+        {/* Product-Specific Checkout Notices */}
+        {cfg.productNotices && cfg.productNotices.length > 0 && (
+          <div className="px-5 pt-3 space-y-2">
+            {cfg.productNotices.map((pn, idx) => (
+              <div key={idx} className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/35 text-xs text-amber-200 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-mono font-bold text-amber-300 block">
+                    Important for {pn.productTitle}:
+                  </span>
+                  <p className="text-[11px] text-amber-100 font-sans mt-0.5 leading-relaxed">
+                    {pn.notice}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5">
           
@@ -297,6 +467,11 @@ export const CheckoutModal: React.FC = () => {
                     <Lock className="w-3.5 h-3.5 text-amber-400" />
                     <span>{cfg.accountPassword.label || 'Existing Account Password / Access PIN'}</span>
                     {cfg.accountPassword.required && <span className="text-rose-400 font-bold">*</span>}
+                    {cfg.passwordRequiredProducts && cfg.passwordRequiredProducts.length > 0 && (
+                      <span className="text-[10px] text-amber-400/90 font-mono">
+                        (Required for: {cfg.passwordRequiredProducts.join(', ')})
+                      </span>
+                    )}
                   </label>
                   <button
                     type="button"

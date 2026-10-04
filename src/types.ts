@@ -22,6 +22,22 @@ export interface PlanOption {
   notes?: string;
 }
 
+export type FieldRequirementLevel = 'required' | 'optional' | 'hidden';
+
+export interface ProductCheckoutConfig {
+  useCustomRules: boolean;
+  passwordRequirement: FieldRequirementLevel;
+  passwordLabel?: string;
+  passwordHelperText?: string;
+  activationEmailRequirement: FieldRequirementLevel;
+  activationEmailLabel?: string;
+  activationEmailPlaceholder?: string;
+  customFieldRequirement: FieldRequirementLevel;
+  customFieldLabel?: string;
+  customFieldPlaceholder?: string;
+  checkoutNotice?: string;
+}
+
 export interface Product {
   id: string;
   title: string;
@@ -38,6 +54,7 @@ export interface Product {
   activationDetails: string;
   iconName: string;
   tags: string[];
+  checkoutConfig?: ProductCheckoutConfig;
 }
 
 export interface CartItem {
