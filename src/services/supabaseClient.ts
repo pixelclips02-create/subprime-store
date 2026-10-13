@@ -1,7 +1,11 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Product, StoreSettings, PlacedOrder } from '../types';
 
-// Storage key to allow storing credentials locally if not in .env
+// Default live Supabase project credentials for multi-device sync
+export const DEFAULT_SUPABASE_URL = 'https://qfracmtespfenfafjfok.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmcmFjbXRlc3BmZW5mYWZqZm9rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5MDM5MTgsImV4cCI6MjEwNzQ3OTkxOH0.1hi0jMzZGr4FWUfVp_eHkNNuJZkYy0pAaBPdYRUSRAc';
+
+// Storage key to allow storing credentials locally if custom
 const SUPABASE_CONFIG_KEY = 'substore_supabase_config_v1';
 
 export interface SupabaseConfig {
@@ -20,23 +24,28 @@ export function getSupabaseConfig(): SupabaseConfig {
 
   // 2. Try localStorage (configured via Developer Mode)
   try {
-    const saved = localStorage.getItem(SUPABASE_CONFIG_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.url && parsed.anonKey) {
-        return { url: parsed.url.trim(), anonKey: parsed.anonKey.trim() };
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const saved = localStorage.getItem(SUPABASE_CONFIG_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.url && parsed.anonKey) {
+          return { url: parsed.url.trim(), anonKey: parsed.anonKey.trim() };
+        }
       }
     }
   } catch (err) {
     console.warn('Error reading saved Supabase config:', err);
   }
 
-  return { url: '', anonKey: '' };
+  // 3. Built-in defaults: enables real-time cloud sync across phones, laptops and customers automatically
+  return { url: DEFAULT_SUPABASE_URL, anonKey: DEFAULT_SUPABASE_ANON_KEY };
 }
 
 export function saveSupabaseConfig(config: SupabaseConfig): void {
   try {
-    localStorage.setItem(SUPABASE_CONFIG_KEY, JSON.stringify(config));
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(SUPABASE_CONFIG_KEY, JSON.stringify(config));
+    }
     // Reset client cache
     cachedClient = null;
   } catch (err) {

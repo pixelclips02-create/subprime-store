@@ -156,6 +156,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
 
+  // Sync products and settings to localStorage whenever updated
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+    } catch (err) {
+      console.warn('Failed to save products to localStorage:', err);
+    }
+  }, [products]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+    } catch (err) {
+      console.warn('Failed to save settings to localStorage:', err);
+    }
+  }, [settings]);
+
   // Load cart
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
@@ -202,6 +219,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (cloudProds && cloudProds.length > 0) {
         setProducts(cloudProds);
         localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(cloudProds));
+      } else if (cloudProds && cloudProds.length === 0) {
+        await seedCloudProducts(products);
+        await saveCloudSettings(settings);
       }
 
       if (cloudSettings) {
