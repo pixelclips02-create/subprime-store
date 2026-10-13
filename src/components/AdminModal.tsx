@@ -27,12 +27,63 @@ import {
   ExternalLink, 
   Phone, 
   FileText, 
-  Sparkles 
+  Sparkles,
+  Database,
+  Cloud,
+  RefreshCw 
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { Product, CategoryId, PlanOption, CheckoutSettings, CheckoutFieldConfig, ProductCheckoutConfig, FieldRequirementLevel } from '../types';
 import { CATEGORIES, DEFAULT_CHECKOUT_SETTINGS } from '../data/defaultProducts';
 import { buildRedditDmUrl } from '../services/emailService';
+
+const SUPABASE_SETUP_SQL = `-- SUBPRIME STORE: Supabase Database Setup
+-- Run this in your Supabase SQL Editor (supabase.com -> your project -> SQL Editor)
+
+-- 1. Create table for store products (catalog, pricing, stock, custom checkout)
+create table if not exists public.store_products (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz default now()
+);
+
+-- Enable Row Level Security (RLS)
+alter table public.store_products enable row level security;
+
+-- Allow public read & write access
+create policy "Public read products" on public.store_products
+  for select using (true);
+create policy "Public manage products" on public.store_products
+  for all using (true) with check (true);
+
+-- 2. Create table for store settings (store title, reddit username, checkout rules)
+create table if not exists public.store_settings (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz default now()
+);
+
+alter table public.store_settings enable row level security;
+
+create policy "Public read settings" on public.store_settings
+  for select using (true);
+create policy "Public manage settings" on public.store_settings
+  for all using (true) with check (true);
+
+-- 3. Create table for customer orders
+create table if not exists public.store_orders (
+  id text primary key,
+  data jsonb not null,
+  created_at timestamptz default now()
+);
+
+alter table public.store_orders enable row level security;
+
+create policy "Public read orders" on public.store_orders
+  for select using (true);
+create policy "Public insert orders" on public.store_orders
+  for insert with check (true);
+`;
 
 export const AdminModal: React.FC = () => {
   const { 
@@ -52,12 +103,34 @@ export const AdminModal: React.FC = () => {
     loginDeveloper,
     logoutDeveloper,
     editingProductTarget,
-    setEditingProductTarget
+    setEditingProductTarget,
+    isCloudConnected,
+    cloudSyncStatus,
+    refreshFromCloud,
+    seedCloudWithLocalProducts,
+    getSupabaseConfig,
+    saveSupabaseConfig
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'inventory' | 'add' | 'edit' | 'checkout' | 'settings' | 'orders'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'add' | 'edit' | 'checkout' | 'database' | 'settings' | 'orders'>('inventory');
   const [filterQuery, setFilterQuery] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Cloud Database state
+  const [supabaseUrlInput, setSupabaseUrlInput] = useState('');
+  const [supabaseKeyInput, setSupabaseKeyInput] = useState('');
+  const [cloudStatusMsg, setCloudStatusMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [isSeedingCloud, setIsSeedingCloud] = useState(false);
+  const [isRefreshingCloud, setIsRefreshingCloud] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
+
+  useEffect(() => {
+    if (isAdminOpen) {
+      const cfg = getSupabaseConfig();
+      setSupabaseUrlInput(cfg.url || '');
+      setSupabaseKeyInput(cfg.anonKey || '');
+    }
+  }, [isAdminOpen]);
 
   // Edit product form state (Allows full price and plan modification)
   const [editTitle, setEditTitle] = useState('');
@@ -460,6 +533,77 @@ export const AdminModal: React.FC = () => {
     setTimeout(() => setCopiedCredential(null), 2000);
   };
 
+  const handleSaveSupabaseConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUrl = supabaseUrlInput.trim();
+    const cleanKey = supabaseKeyInput.trim();
+
+    if (!cleanUrl || !cleanKey) {
+      setCloudStatusMsg({ type: 'error', text: 'Please enter both Supabase Project URL and Public Anon Key.' });
+      return;
+    }
+
+    saveSupabaseConfig({ url: cleanUrl, anonKey: cleanKey });
+    setCloudStatusMsg({ type: 'info', text: 'Connecting & syncing with Supabase...' });
+
+    try {
+      await refreshFromCloud();
+      setCloudStatusMsg({ type: 'success', text: 'Supabase connected successfully! Catalog is now syncing live across all devices.' });
+    } catch (err: any) {
+      setCloudStatusMsg({ type: 'error', text: `Connection test failed: ${err?.message || 'Check your URL, key, and SQL tables.'}` });
+    }
+  };
+
+  const handleDisconnectSupabase = () => {
+    if (window.confirm('Disconnect cloud database and switch back to local browser storage?')) {
+      saveSupabaseConfig({ url: '', anonKey: '' });
+      setSupabaseUrlInput('');
+      setSupabaseKeyInput('');
+      setCloudStatusMsg({ type: 'info', text: 'Disconnected. Store is now using local browser storage.' });
+    }
+  };
+
+  const handleSeedCloud = async () => {
+    if (!isCloudConnected) {
+      alert('Please connect Supabase first before uploading products.');
+      return;
+    }
+    if (!window.confirm(`Upload all ${products.length} current local products to your Supabase cloud database? This will make them live immediately on all phones & customer devices.`)) {
+      return;
+    }
+
+    setIsSeedingCloud(true);
+    setCloudStatusMsg({ type: 'info', text: 'Uploading products to Supabase cloud...' });
+
+    const ok = await seedCloudWithLocalProducts();
+    setIsSeedingCloud(false);
+
+    if (ok) {
+      setCloudStatusMsg({ type: 'success', text: `Successfully uploaded ${products.length} products to Supabase! Open the store on your phone to see them immediately.` });
+    } else {
+      setCloudStatusMsg({ type: 'error', text: 'Failed to upload products. Make sure you ran the SQL setup in your Supabase SQL Editor.' });
+    }
+  };
+
+  const handleRefreshCloud = async () => {
+    setIsRefreshingCloud(true);
+    setCloudStatusMsg({ type: 'info', text: 'Refreshing from cloud database...' });
+    try {
+      await refreshFromCloud();
+      setCloudStatusMsg({ type: 'success', text: 'Latest products and settings pulled from Supabase!' });
+    } catch (err: any) {
+      setCloudStatusMsg({ type: 'error', text: `Refresh failed: ${err?.message || 'Check connection.'}` });
+    } finally {
+      setIsRefreshingCloud(false);
+    }
+  };
+
+  const handleCopySql = () => {
+    navigator.clipboard.writeText(SUPABASE_SETUP_SQL);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 2500);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm">
       <div className="bg-[#0c0f18] text-slate-100 rounded-3xl shadow-2xl max-w-4xl w-full h-[88vh] flex flex-col border border-white/[0.09] overflow-hidden">
@@ -521,6 +665,29 @@ export const AdminModal: React.FC = () => {
             <span className="text-cyan-400 font-medium">
               Orders: <strong>{orders.length}</strong>
             </span>
+            <div className="flex items-center gap-1.5 border-l border-white/10 pl-3">
+              {isCloudConnected ? (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('database')}
+                  className="text-emerald-400 font-mono text-[11px] flex items-center gap-1 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-full hover:bg-emerald-900/60 transition cursor-pointer"
+                  title="Supabase Connected - products sync to all devices. Click to view settings."
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Cloud Live
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('database')}
+                  className="text-amber-400 font-mono text-[11px] flex items-center gap-1 bg-amber-950/60 border border-amber-500/30 px-2.5 py-0.5 rounded-full hover:bg-amber-900/60 transition cursor-pointer"
+                  title="Only saved in this browser. Click to connect Supabase and sync with phones."
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                  Local Only (Click to Sync)
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Quick Actions */}
@@ -598,6 +765,20 @@ export const AdminModal: React.FC = () => {
           >
             <CheckSquare className="w-4 h-4 text-cyan-400" />
             <span>Checkout Fields & Rules</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('database')}
+            className={`py-3 px-4 font-bold text-xs border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'database'
+                ? 'border-cyan-500 text-cyan-300 bg-cyan-950/40'
+                : isCloudConnected
+                  ? 'border-transparent text-emerald-400 hover:text-emerald-300'
+                  : 'border-transparent text-amber-400 hover:text-amber-300'
+            }`}
+          >
+            <Database className="w-4 h-4 text-cyan-400" />
+            <span>Cloud Sync & Database {isCloudConnected ? '🟢' : '⚡'}</span>
           </button>
 
           <button
@@ -2248,6 +2429,277 @@ export const AdminModal: React.FC = () => {
                   );
                 })
               )}
+            </div>
+          )}
+
+          {/* TAB: CLOUD DATABASE & MULTI-DEVICE SYNC */}
+          {activeTab === 'database' && (
+            <div className="space-y-6">
+              
+              {/* Status Header Banner */}
+              <div className={`p-5 rounded-2xl border transition-all ${
+                isCloudConnected 
+                  ? 'bg-emerald-950/20 border-emerald-500/30 shadow-[0_0_25px_rgba(16,185,129,0.1)]' 
+                  : 'bg-amber-950/20 border-amber-500/30 shadow-[0_0_25px_rgba(245,158,11,0.1)]'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start sm:items-center gap-3.5">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                      isCloudConnected ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                    }`}>
+                      <Cloud className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-display font-extrabold text-base text-white">
+                          Cloud Database & Multi-Device Sync
+                        </h3>
+                        <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full uppercase ${
+                          isCloudConnected 
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        }`}>
+                          {isCloudConnected ? '🟢 Live Synced' : '⚡ Local Storage Only'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300 mt-1 font-mono">
+                        {isCloudConnected 
+                          ? 'All product changes, stock toggles, and new orders automatically synchronize across your phone, computer, and all customers.' 
+                          : 'Currently using your browser’s local storage. Changes made here will NOT appear on your phone or for customers until Supabase is connected.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Quick actions when connected */}
+                  {isCloudConnected && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleRefreshCloud}
+                        disabled={isRefreshingCloud}
+                        className="px-3 py-2 rounded-xl bg-white/[0.05] border border-white/10 hover:bg-white/[0.1] text-slate-200 text-xs font-mono font-bold flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
+                        title="Pull latest data from Supabase"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isRefreshingCloud ? 'animate-spin' : ''}`} />
+                        <span>{isRefreshingCloud ? 'Syncing...' : 'Sync Now'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDisconnectSupabase}
+                        className="px-3 py-2 rounded-xl bg-rose-950/40 border border-rose-800/60 hover:bg-rose-900 text-rose-300 text-xs font-mono font-bold transition cursor-pointer"
+                        title="Disconnect Supabase"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cloud Upload / Seed Banner */}
+                {isCloudConnected && (
+                  <div className="mt-4 pt-4 border-t border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-950/30 -mx-5 -mb-5 p-4 rounded-b-2xl">
+                    <div className="text-xs text-emerald-200 font-mono">
+                      💡 <strong>Sync Local Catalog to Cloud:</strong> Have {products.length} products on this PC? Push all of them into your Supabase database in 1 click!
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSeedCloud}
+                      disabled={isSeedingCloud}
+                      className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs font-mono shadow-[0_0_15px_rgba(16,185,129,0.3)] flex items-center gap-2 transition shrink-0 cursor-pointer disabled:opacity-50"
+                    >
+                      <Database className="w-4 h-4" />
+                      <span>{isSeedingCloud ? 'Uploading Products...' : `Upload All ${products.length} Products to Cloud`}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Status Message Alert */}
+              {cloudStatusMsg && (
+                <div className={`p-3.5 rounded-xl text-xs font-mono border flex items-center gap-2.5 ${
+                  cloudStatusMsg.type === 'success'
+                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+                    : cloudStatusMsg.type === 'error'
+                      ? 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+                      : 'bg-cyan-950/40 border-cyan-500/40 text-cyan-200'
+                }`}>
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{cloudStatusMsg.text}</span>
+                </div>
+              )}
+
+              {/* Credentials Form */}
+              <div className="bg-[#0e121e] border border-white/[0.08] rounded-2xl p-5">
+                <h4 className="font-display font-extrabold text-sm text-white flex items-center gap-2 mb-1">
+                  <Database className="w-4 h-4 text-cyan-400" />
+                  <span>Supabase Credentials</span>
+                </h4>
+                <p className="text-xs text-slate-400 font-mono mb-4">
+                  Connect your free Supabase project to enable real-time database persistence.
+                </p>
+
+                <form onSubmit={handleSaveSupabaseConfig} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-mono text-slate-300 font-bold mb-1.5">
+                      Supabase Project URL
+                    </label>
+                    <input
+                      type="url"
+                      value={supabaseUrlInput}
+                      onChange={(e) => setSupabaseUrlInput(e.target.value)}
+                      placeholder="https://xyzcompany.supabase.co"
+                      className="w-full bg-[#080a12] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition"
+                      required
+                    />
+                    <span className="text-[10px] font-mono text-slate-500 mt-1 block">
+                      Found in Supabase: Project Settings → API → Project URL
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-mono text-slate-300 font-bold mb-1.5">
+                      Supabase Public Anon Key
+                    </label>
+                    <input
+                      type="password"
+                      value={supabaseKeyInput}
+                      onChange={(e) => setSupabaseKeyInput(e.target.value)}
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      className="w-full bg-[#080a12] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition"
+                      required
+                    />
+                    <span className="text-[10px] font-mono text-slate-500 mt-1 block">
+                      Found in Supabase: Project Settings → API → Project API Keys → `anon public` key
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold text-xs font-mono rounded-xl shadow-[0_0_20px_rgba(6,182,212,0.3)] transition cursor-pointer flex items-center gap-2"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>{isCloudConnected ? 'Update & Test Connection' : 'Connect Supabase Cloud'}</span>
+                    </button>
+                    {isCloudConnected && (
+                      <button
+                        type="button"
+                        onClick={handleDisconnectSupabase}
+                        className="px-4 py-2.5 bg-white/[0.04] hover:bg-rose-950 border border-white/10 hover:border-rose-800 text-slate-300 hover:text-rose-200 font-mono text-xs font-bold rounded-xl transition cursor-pointer"
+                      >
+                        Disconnect
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+              {/* Step-by-Step Setup Guide */}
+              <div className="bg-[#0e121e] border border-white/[0.08] rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-display font-extrabold text-sm text-white flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <span>Quick Setup Guide (Takes 2 Minutes & 100% Free)</span>
+                    </h4>
+                    <p className="text-xs text-slate-400 font-mono mt-0.5">
+                      Follow these 3 simple steps to sync all your devices forever.
+                    </p>
+                  </div>
+                  <a
+                    href="https://supabase.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/10 hover:bg-white/[0.1] text-cyan-400 text-xs font-mono font-bold flex items-center gap-1.5 transition"
+                  >
+                    <span>Open Supabase.com</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-white/[0.06]">
+                    <div className="w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 font-bold font-mono text-xs flex items-center justify-center mb-2">
+                      1
+                    </div>
+                    <h5 className="font-bold text-white text-xs mb-1">Create Free Project</h5>
+                    <p className="text-[11px] text-slate-400 font-mono leading-relaxed">
+                      Go to <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-cyan-400 underline">supabase.com</a>, log in with GitHub, and click <strong>New Project</strong>. Choose any name and password.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-white/[0.06]">
+                    <div className="w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 font-bold font-mono text-xs flex items-center justify-center mb-2">
+                      2
+                    </div>
+                    <h5 className="font-bold text-white text-xs mb-1">Run SQL Script</h5>
+                    <p className="text-[11px] text-slate-400 font-mono leading-relaxed">
+                      Click <strong>SQL Editor</strong> on the left menu in Supabase, paste the SQL schema below, and click <strong>Run</strong>.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-white/[0.06]">
+                    <div className="w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 font-bold font-mono text-xs flex items-center justify-center mb-2">
+                      3
+                    </div>
+                    <h5 className="font-bold text-white text-xs mb-1">Copy API Keys</h5>
+                    <p className="text-[11px] text-slate-400 font-mono leading-relaxed">
+                      Go to <strong>Project Settings → API</strong>, copy the Project URL and <code>anon public</code> key, and paste them into the form above!
+                    </p>
+                  </div>
+                </div>
+
+                {/* SQL Code Box with Copy Button */}
+                <div className="mt-4 pt-4 border-t border-white/[0.06]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-mono font-bold text-slate-300 flex items-center gap-2">
+                      <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                      Supabase SQL Setup Code:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopySql}
+                      className="px-3 py-1 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-mono font-bold flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      {copiedSql ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400">Copied to Clipboard!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy SQL Setup Script</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <pre className="bg-[#060810] border border-white/[0.08] p-3.5 rounded-xl text-[11px] font-mono text-slate-300 overflow-x-auto max-h-48 leading-relaxed scrollbar-thin">
+                    {SUPABASE_SETUP_SQL}
+                  </pre>
+                </div>
+
+                {/* Vercel Environment Variables Tip */}
+                <div className="p-3.5 rounded-xl bg-indigo-950/30 border border-indigo-500/20 text-xs font-mono text-indigo-200">
+                  <div className="font-bold text-indigo-300 flex items-center gap-1.5 mb-1">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Automatic Setup for All Visitors on Vercel:
+                  </div>
+                  <p className="text-[11px] text-indigo-200/90 leading-relaxed">
+                    Want your store to automatically connect to the cloud for every customer without typing credentials? Go to your <strong>Vercel Dashboard → Project Settings → Environment Variables</strong> and add:
+                  </p>
+                  <ul className="list-disc list-inside mt-1.5 space-y-0.5 text-[11px] text-cyan-300">
+                    <li><code>VITE_SUPABASE_URL</code> = your Supabase URL</li>
+                    <li><code>VITE_SUPABASE_ANON_KEY</code> = your Supabase anon public key</li>
+                  </ul>
+                  <p className="text-[10px] text-slate-400 mt-1.5">
+                    Then trigger a Redeploy on Vercel. That's it!
+                  </p>
+                </div>
+
+              </div>
+
             </div>
           )}
 

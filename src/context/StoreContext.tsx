@@ -11,6 +11,20 @@ import {
 } from '../types';
 import { DEFAULT_PRODUCTS, DEFAULT_SETTINGS, DEFAULT_CHECKOUT_SETTINGS } from '../data/defaultProducts';
 import { sendOrderNotificationEmail } from '../services/emailService';
+import {
+  isSupabaseConfigured,
+  fetchCloudProducts,
+  saveCloudProduct,
+  deleteCloudProduct,
+  seedCloudProducts,
+  fetchCloudSettings,
+  saveCloudSettings,
+  fetchCloudOrders,
+  saveCloudOrder,
+  getSupabaseConfig,
+  saveSupabaseConfig,
+  SupabaseConfig
+} from '../services/supabaseClient';
 
 interface StoreContextType {
   // Catalog
@@ -20,6 +34,14 @@ interface StoreContextType {
   setSearchQuery: (query: string) => void;
   selectedCategory: CategoryId;
   setSelectedCategory: (cat: CategoryId) => void;
+
+  // Cloud Database Sync
+  isCloudConnected: boolean;
+  cloudSyncStatus: 'synced' | 'syncing' | 'offline' | 'error';
+  refreshFromCloud: () => Promise<void>;
+  seedCloudWithLocalProducts: () => Promise<boolean>;
+  getSupabaseConfig: () => SupabaseConfig;
+  saveSupabaseConfig: (config: SupabaseConfig) => void;
 
   // Cart
   cart: CartItem[];
@@ -153,6 +175,68 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return [];
     }
   });
+
+  // Cloud Database Sync State
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(isSupabaseConfigured());
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'error'>(
+    isSupabaseConfigured() ? 'syncing' : 'offline'
+  );
+
+  // Sync from Supabase on startup and when requested
+  const refreshFromCloud = async () => {
+    if (!isSupabaseConfigured()) {
+      setIsCloudConnected(false);
+      setCloudSyncStatus('offline');
+      return;
+    }
+
+    try {
+      setCloudSyncStatus('syncing');
+      setIsCloudConnected(true);
+      const [cloudProds, cloudSettings, cloudOrders] = await Promise.all([
+        fetchCloudProducts(),
+        fetchCloudSettings(),
+        fetchCloudOrders(),
+      ]);
+
+      if (cloudProds && cloudProds.length > 0) {
+        setProducts(cloudProds);
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(cloudProds));
+      }
+
+      if (cloudSettings) {
+        setSettings(cloudSettings);
+        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(cloudSettings));
+      }
+
+      if (cloudOrders && cloudOrders.length > 0) {
+        setOrders(cloudOrders);
+        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(cloudOrders));
+      }
+
+      setCloudSyncStatus('synced');
+    } catch (err) {
+      console.warn('Supabase cloud fetch error:', err);
+      setCloudSyncStatus('error');
+    }
+  };
+
+  useEffect(() => {
+    refreshFromCloud();
+  }, []);
+
+  const seedCloudWithLocalProducts = async (): Promise<boolean> => {
+    if (!isSupabaseConfigured()) return false;
+    setCloudSyncStatus('syncing');
+    const success = await seedCloudProducts(products);
+    if (success) {
+      await saveCloudSettings(settings);
+      setCloudSyncStatus('synced');
+    } else {
+      setCloudSyncStatus('error');
+    }
+    return success;
+  };
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -413,6 +497,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Send email notification to seller
     await sendOrderNotificationEmail(newOrder, settings);
 
+    // Persist order to Supabase cloud if connected
+    if (isSupabaseConfigured()) {
+      saveCloudOrder(newOrder).catch(console.error);
+    }
+
     // Clear cart and show success modal
     clearCart();
     setIsCheckoutOpen(false);
@@ -423,11 +512,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Developer / Admin Powers
   const toggleStock = (productId: string) => {
-    setProducts((prev) =>
-      prev.map((prod) =>
+    setProducts((prev) => {
+      const updated = prev.map((prod) =>
         prod.id === productId ? { ...prod, inStock: !prod.inStock } : prod
-      )
-    );
+      );
+      const target = updated.find((p) => p.id === productId);
+      if (target && isSupabaseConfigured()) {
+        saveCloudProduct(target).catch(console.error);
+      }
+      return updated;
+    });
   };
 
   const addProduct = (newProdData: Omit<Product, 'id'>) => {
@@ -436,16 +530,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id: 'prod-' + Date.now(),
     };
     setProducts((prev) => [newProduct, ...prev]);
+    if (isSupabaseConfigured()) {
+      saveCloudProduct(newProduct).catch(console.error);
+    }
   };
 
   const updateProduct = (id: string, updated: Partial<Product>) => {
-    setProducts((prev) =>
-      prev.map((prod) => (prod.id === id ? { ...prod, ...updated } : prod))
-    );
+    setProducts((prev) => {
+      const next = prev.map((prod) => (prod.id === id ? { ...prod, ...updated } : prod));
+      const target = next.find((p) => p.id === id);
+      if (target && isSupabaseConfigured()) {
+        saveCloudProduct(target).catch(console.error);
+      }
+      return next;
+    });
   };
 
   const deleteProduct = (id: string) => {
     setProducts((prev) => prev.filter((prod) => prod.id !== id));
+    if (isSupabaseConfigured()) {
+      deleteCloudProduct(id).catch(console.error);
+    }
   };
 
   const resetToDefaults = () => {
@@ -479,7 +584,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateSettings = (newSettings: Partial<StoreSettings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+    setSettings((prev) => {
+      const next = { ...prev, ...newSettings };
+      if (isSupabaseConfigured()) {
+        saveCloudSettings(next).catch(console.error);
+      }
+      return next;
+    });
   };
 
   return (
@@ -535,6 +646,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         exportProductsJson,
         importProductsJson,
         updateSettings,
+        isCloudConnected,
+        cloudSyncStatus,
+        refreshFromCloud,
+        seedCloudWithLocalProducts,
+        getSupabaseConfig,
+        saveSupabaseConfig,
       }}
     >
       {children}
